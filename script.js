@@ -6,6 +6,7 @@ let connections;
 let canvas;
 let showVideo = true;
 let isFullscreen = false;
+let generateImagesEnabled = true;
 let originalWidth = 640;
 let originalHeight = 480;
 
@@ -21,6 +22,12 @@ let stableCounter = 0;
 const STABLE_FRAMES = 12; // ~200ms at 60fps
 
 async function ensureImageFor(state) {
+  // If image generation is disabled, don't generate images
+  if (!generateImagesEnabled) {
+    console.log("Image generation is disabled");
+    return null;
+  }
+
   // If cached, return immediately
   if (overlayImages[state]) return overlayImages[state];
 
@@ -281,12 +288,16 @@ and video toggle functionality.
 function setupControls() {
     const fullscreenBtn = document.getElementById('fullscreen-btn');
     const videoToggleBtn = document.getElementById('video-toggle-btn');
+    const generateImagesBtn = document.getElementById('generate-images-btn');
 
     // Fullscreen functionality
     fullscreenBtn.addEventListener('click', toggleFullscreen);
 
     // Video toggle functionality
     videoToggleBtn.addEventListener('click', toggleVideo);
+
+    // Generate images toggle functionality
+    generateImagesBtn.addEventListener('click', toggleImageGeneration);
 
     // Listen for ESC key to exit fullscreen
     document.addEventListener('keydown', function(event) {
@@ -337,4 +348,20 @@ function toggleVideo() {
 
     showVideo = !showVideo;
     videoToggleBtn.textContent = showVideo ? 'Hide Video' : 'Show Video';
+}
+
+function toggleImageGeneration() {
+    const generateImagesBtn = document.getElementById('generate-images-btn');
+
+    generateImagesEnabled = !generateImagesEnabled;
+    generateImagesBtn.textContent = generateImagesEnabled ? 'Generate Images' : 'Images Disabled';
+
+    // Update button styling to show disabled state
+    if (generateImagesEnabled) {
+        generateImagesBtn.classList.remove('btn-disabled');
+        generateImagesBtn.classList.add('btn-1');
+    } else {
+        generateImagesBtn.classList.remove('btn-1');
+        generateImagesBtn.classList.add('btn-disabled');
+    }
 }

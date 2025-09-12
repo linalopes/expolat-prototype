@@ -60,6 +60,26 @@ a:hover {
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
 }
 
+/* Disabled button styling */
+.btn-disabled {
+    color: var(--bs-gray-600);
+    background-color: var(--bs-gray-300);
+    border-color: var(--bs-gray-400);
+    padding: 10px 20px;
+    border-radius: 5px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.btn-disabled:hover {
+    color: var(--bs-gray-600);
+    background-color: var(--bs-gray-300);
+    border-color: var(--bs-gray-400);
+    transform: translateY(0);
+}
+
 /* Controls Container */
 .controls-container {
     margin-top: 20px;
