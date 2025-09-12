@@ -1,4 +1,4 @@
-# Mountain - Jesus! 🏔️✝️
+# Mountain - Jesus
 
 An interactive pose detection game that uses AI to generate overlay images when you strike specific poses. Built with p5.js, ml5.js, and OpenAI's DALL-E API.
 
