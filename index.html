@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <!-- Specifies the document type and language for the browser and accessibility tools -->
+    <meta charset="UTF-8"> <!-- Sets the character encoding to UTF-8 for global compatibility -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"> <!-- Ensures responsiveness on all devices -->
+    <title>DEAD OR ALIVE</title> <!-- Defines the title displayed on the browser tab -->
+
+    <!-- Adds a favicon (icon in the browser tab) -->
+    <link rel="icon" href="favicon.png">
+
+    <!-- Links to Bootstrap CSS for pre-built responsive design and styling -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+
+    <!-- Links to Google Fonts for custom typography -->
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@100;200;300;400;500;600;700;800;900&family=Inter:wght@100;200;300;400;500;600;700;800;900&subset=latin&display=swap" rel="stylesheet">
+
+    <!-- Links to the custom CSS file for additional styles -->
+    <link href="styles.css" rel="stylesheet">
+
+    <!-- Includes p5.js for creative coding and interactive visualizations -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.6.0/p5.js"></script>
+
+    <!-- Includes ml5.js for using machine learning in creative projects -->
+    <script src="https://unpkg.com/ml5@1/dist/ml5.js"></script>
+</head>
+<body>
+    <section id="video-section" class="d-flex justify-content-center align-items-center my-5">
+        <!-- Main interactive section with a title and description -->
+        <div class="container">
+            <h1 class="text-center">Expolat Prototype</h1> <!-- Game title -->
+
+            <!-- Wrapper for video-related content (likely interactive) -->
+            <div id="video-wrapper" class="d-flex justify-content-center align-items-center"></div>
+
+            <!-- Control buttons -->
+            <div class="controls-container mt-3 d-flex justify-content-center gap-3">
+                <button id="fullscreen-btn" class="btn btn-1">Fullscreen</button>
+                <button id="video-toggle-btn" class="btn btn-1">Hide Video</button>
+            </div>
+
+            <!-- Pose Instructions -->
+            <div class="pose-instructions mt-4">
+                <div class="row justify-content-center">
+                    <div class="col-md-4 text-center mb-3">
+                        <div class="pose-card">
+                            <img src="mountain.svg" alt="Mountain pose" class="pose-icon">
+                            <h5>Mountain</h5>
+                            <p class="small">Both hands on top of head, close together</p>
+                        </div>
+                    </div>
+                    <div class="col-md-4 text-center mb-3">
+                        <div class="pose-card">
+                            <img src="jesus.svg" alt="Jesus pose" class="pose-icon">
+                            <h5>Jesus</h5>
+                            <p class="small">Arms extended horizontally to the sides</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Links to a custom JavaScript file for functionality -->
+    <script src="script.js"></script>
+</body>
+</html>
