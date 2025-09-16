@@ -5,42 +5,74 @@ let poses = [];
 let connections;
 let canvas;
 let showVideo = true;
-let showTracking = true;
 let isFullscreen = false;
+let generateImagesEnabled = true;
 let originalWidth = 640;
 let originalHeight = 480;
 
-// Per-person state arrays for multi-person support
-let personStates = []; // Current state for each person
-let personLastStates = []; // Previous state for each person
-let personStableStates = []; // Stable state for each person
-let personStableCounters = []; // Counter for state stability
-let personOverlayImages = []; // Overlay image for each person
-const STABLE_FRAMES = 12; // Number of frames to wait before considering a state stable
+let overlayImages = { Mountain: null, Jesus: null };
+let currentState = "Neutral";
+let lastState = "Neutral";
+const MOUNTAIN_PROMPT = "Minimalist icon of a mountain silhouette, no background, transparent PNG, center composition, single color fill, vector-like, high contrast, 640x480.";
+const JESUS_PROMPT   = "Minimalist icon of a T-pose human silhouette with arms extended horizontally, no background, transparent PNG, center composition, single color fill, vector-like, high contrast, 640x480.";
 
-// Local images for poses
-let jesusImage = null; // Jesus_1.png
-let primeImage = null; // Prime_1.png
+// Simple debounce to avoid flicker when pose toggles
+let stableState = "Neutral";
+let stableCounter = 0;
+const STABLE_FRAMES = 12; // ~200ms at 60fps
 
+async function ensureImageFor(state) {
+  // If image generation is disabled, don't generate images
+  if (!generateImagesEnabled) {
+    console.log("Image generation is disabled");
+    return null;
+  }
+
+  // If cached, return immediately
+  if (overlayImages[state]) return overlayImages[state];
+
+  const prompt = state === "Mountain" ? MOUNTAIN_PROMPT : JESUS_PROMPT;
+
+  // Ask local server to generate + persist
+  const resp = await fetch("http://localhost:8787/gen", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      state,
+      prompt,
+      width: originalWidth,
+      height: originalHeight
+    })
+  });
+  const json = await resp.json();
+  if (!resp.ok || !json.dataUrl) {
+    console.error("Image generation failed:", json);
+    return null;
+  }
+
+  // Load the returned dataURL into a p5.Image
+  return new Promise((resolve) => {
+    loadImage(json.dataUrl, (img) => {
+      overlayImages[state] = img;
+      console.log("Overlay ready for:", state, "file:", json.filename);
+      resolve(img);
+    });
+  });
+}
 /*
 ===========================================================
 SETUP
 This section initializes the video capture, canvas, and
-starts the body pose detection for Prime and Jesus pose
-analysis with multi-person support.
+starts the body pose detection for Mountain and Jesus pose
+analysis.
 ===========================================================
 */
 
 function preload() {
     // Preload the bodyPose model using ml5.js with horizontal flip for mirroring
     bodyPose = ml5.bodyPose({ flipHorizontal: true });
-
-    // Load local images for poses
-    jesusImage = loadImage('generated/Jesus_1.png');
-    primeImage = loadImage('generated/Prime_1.png');
-
-    console.log("Loading local images: Jesus_1.png and Prime_1.png");
 }
+
 
 function setup() {
     // Dynamically create the canvas and attach it to the "video-wrapper" div in the HTML
@@ -62,7 +94,8 @@ function setup() {
     // Setup control buttons
     setupControls();
 
-    console.log("Setup complete - multi-person pose detection ready");
+    ensureImageFor("Mountain");
+    ensureImageFor("Jesus");
 }
 
 /*
@@ -71,7 +104,7 @@ DRAWING
 This section is responsible for rendering the mirrored video
 feed on the canvas, visualizing detected poses, and drawing
 skeletons and keypoints for all participants. It also displays
-per-person stickers anchored to shoulders.
+the pose state ("Mountain", "Jesus", or "Neutral") for each person.
 ===========================================================
 */
 
@@ -92,53 +125,66 @@ function draw() {
         pop();
     }
 
-    // Resize per-person arrays to match current number of poses
-    resizePersonArrays(poses.length);
+    // Debug: Check if poses are being detected
+    console.log("Poses detected:", poses.length);
 
-    // Loop through detected poses to draw skeletons, keypoints, and analyze states
+    // Loop through detected poses to draw skeletons and keypoints
     for (let i = 0; i < poses.length; i++) {
         let pose = poses[i];
 
-        // Draw skeleton connections for the pose (only if tracking is enabled)
-        if (showTracking) {
-            for (let j = 0; j < connections.length; j++) {
-                let pointAIndex = connections[j][0];
-                let pointBIndex = connections[j][1];
-                let pointA = pose.keypoints[pointAIndex];
-                let pointB = pose.keypoints[pointBIndex];
+        // Draw skeleton connections for the pose
+        for (let j = 0; j < connections.length; j++) {
+            let pointAIndex = connections[j][0];
+            let pointBIndex = connections[j][1];
+            let pointA = pose.keypoints[pointAIndex];
+            let pointB = pose.keypoints[pointBIndex];
 
-                if (pointA.confidence > 0.1 && pointB.confidence > 0.1) {
-                    stroke(255, 0, 0);
-                    strokeWeight(2 * min(scaleX, scaleY)); // Scale stroke weight
-                    line(pointA.x * scaleX, pointA.y * scaleY, pointB.x * scaleX, pointB.y * scaleY);
-                }
+            if (pointA.confidence > 0.1 && pointB.confidence > 0.1) {
+                stroke(255, 0, 0);
+                strokeWeight(2 * min(scaleX, scaleY)); // Scale stroke weight
+                line(pointA.x * scaleX, pointA.y * scaleY, pointB.x * scaleX, pointB.y * scaleY);
             }
         }
 
-        // Analyze the pose state of each person (Prime, Jesus, or Neutral) and get the state
-        personStates[i] = analyzeState(pose, i + 1);
+        // Analyze the pose state of each person (Mountain, Jesus, or Neutral) and display it
+        analyzeState(pose, i + 1);
 
-        // Draw keypoints for each person (only if tracking is enabled)
-        if (showTracking) {
-            for (let j = 0; j < pose.keypoints.length; j++) {
-                let keypoint = pose.keypoints[j];
-                if (keypoint.confidence > 0.1) {
-                    fill(0, 255, 0); // Green color for keypoints
-                    noStroke();
-                    circle(keypoint.x * scaleX, keypoint.y * scaleY, 10 * min(scaleX, scaleY));
-                }
+        // Draw keypoints for each person
+        for (let j = 0; j < pose.keypoints.length; j++) {
+            let keypoint = pose.keypoints[j];
+            if (keypoint.confidence > 0.1) {
+                fill(0, 255, 0); // Green color for keypoints
+                noStroke();
+                circle(keypoint.x * scaleX, keypoint.y * scaleY, 10 * min(scaleX, scaleY));
             }
         }
-    }
 
-    // Process per-person state changes and debounce
-    for (let i = 0; i < poses.length; i++) {
-        processPersonStateChange(i);
-    }
+        if (currentState !== stableState) {
+          stableCounter++;
+          if (stableCounter >= STABLE_FRAMES) {
+            stableState = currentState;
+            stableCounter = 0;
+          }
+        } else {
+          stableCounter = 0;
+        }
 
-    // Draw per-person stickers anchored to shoulders
-    for (let i = 0; i < poses.length; i++) {
-        drawPersonSticker(i, poses[i], scaleX, scaleY);
+        // If state changed to one of the overlays, ensure image is ready
+        if (stableState !== lastState && (stableState === "Mountain" || stableState === "Jesus")) {
+          ensureImageFor(stableState);
+          lastState = stableState;
+        }
+
+        // Draw: if we have an overlay for the stable state, put it on top
+        const overlay = overlayImages[stableState];
+        if (overlay) {
+          // Option A: overlay on top of the video
+          image(overlay, 0, 0, width, height);
+
+          // Option B (if you want to hide the video when overlay is on):
+          // skip drawing the mirrored video earlier when stableState !== "Neutral"
+        }
+
     }
 }
 
@@ -146,14 +192,16 @@ function draw() {
 ===========================================================
 POSE ANALYSIS
 This section analyzes the body pose data to determine whether
-a participant is in "Prime" pose (hands on head) or "Jesus" pose (open arms).
+a participant is in "Mountain" pose (hands on head) or "Jesus" pose (open arms).
 It uses keypoints like wrists, elbows, shoulders, and nose to calculate the posture
 and displays the result on the canvas.
 ===========================================================
 */
 
-// Analyze the player's pose to determine if they are "Prime" (hands on head) or "Jesus" (open arms)
+// Analyze the player's pose to determine if they are "Mountain" (hands on head) or "Jesus" (open arms)
 function analyzeState(pose, personNumber) {
+    console.log(`Analyzing pose for Person ${personNumber}`);
+
     // Extract keypoints for hands, shoulders, and head
     let leftWrist = pose.keypoints.find((k) => k.name === "left_wrist");
     let rightWrist = pose.keypoints.find((k) => k.name === "right_wrist");
@@ -165,22 +213,24 @@ function analyzeState(pose, personNumber) {
 
     // Handle missing keypoints
     if (!leftWrist || !rightWrist || !leftElbow || !rightElbow || !leftShoulder || !rightShoulder || !nose) {
-        return "Neutral";
+        console.warn(`Missing keypoints for Person ${personNumber}`);
+        return;
     }
 
     // Check confidence levels
     if (leftWrist.confidence < 0.3 || rightWrist.confidence < 0.3 || nose.confidence < 0.3) {
-        return "Neutral";
+        console.warn(`Low confidence keypoints for Person ${personNumber}`);
+        return;
     }
 
     let state = "Neutral";
 
-    // Check for Prime pose: both hands on top of head and close together
+    // Check for Mountain pose: both hands on top of head and close together
     let handsAboveHead = leftWrist.y < nose.y - 20 && rightWrist.y < nose.y - 20;
     let handsCloseTogether = Math.abs(leftWrist.x - rightWrist.x) < 100; // Adjust threshold as needed
 
     if (handsAboveHead && handsCloseTogether) {
-        state = "Prime";
+        state = "Mountain";
     }
     // Check for Jesus pose: arms extended horizontally (open arms)
     else {
@@ -207,6 +257,10 @@ function analyzeState(pose, personNumber) {
         }
     }
 
+    console.log(`Person ${personNumber} is ${state}`);
+
+    currentState = state;
+
     // Display the state on the canvas
     fill(255);
     let scaleX = width / originalWidth;
@@ -214,122 +268,11 @@ function analyzeState(pose, personNumber) {
     textSize(20 * min(scaleX, scaleY));
     textAlign(LEFT);
     text(`Person ${personNumber}: ${state}`, 10 * scaleX, height - 20 * personNumber * scaleY);
-
-    return state;
-}
-
-/*
-===========================================================
-MULTI-PERSON STATE MANAGEMENT
-This section handles per-person state arrays, debouncing,
-and image selection for multiple people.
-===========================================================
-*/
-
-// Resize per-person arrays to match the current number of poses
-function resizePersonArrays(numPersons) {
-    // Extend arrays if we have more people
-    while (personStates.length < numPersons) {
-        personStates.push("Neutral");
-        personLastStates.push("Neutral");
-        personStableStates.push("Neutral");
-        personStableCounters.push(0);
-        personOverlayImages.push(null);
-    }
-
-    // Truncate arrays if we have fewer people
-    if (personStates.length > numPersons) {
-        personStates = personStates.slice(0, numPersons);
-        personLastStates = personLastStates.slice(0, numPersons);
-        personStableStates = personStableStates.slice(0, numPersons);
-        personStableCounters = personStableCounters.slice(0, numPersons);
-        personOverlayImages = personOverlayImages.slice(0, numPersons);
-    }
-}
-
-// Process state change for a specific person with debouncing
-function processPersonStateChange(personIndex) {
-    if (personIndex >= personStates.length) return;
-
-    let currentState = personStates[personIndex];
-    let stableState = personStableStates[personIndex];
-
-    // Check if state changed
-    if (currentState !== stableState) {
-        personStableCounters[personIndex]++;
-        if (personStableCounters[personIndex] >= STABLE_FRAMES) {
-            // State is stable, commit the change
-            personStableStates[personIndex] = currentState;
-            personStableCounters[personIndex] = 0;
-
-            // Update overlay image based on new stable state
-            personOverlayImages[personIndex] = selectImageFor(currentState);
-
-            console.log(`Person ${personIndex + 1} state changed to: ${currentState}`);
-        }
-    } else {
-        // State is stable, reset counter
-        personStableCounters[personIndex] = 0;
-    }
-}
-
-// Select appropriate image for a given state
-function selectImageFor(state) {
-    if (state === "Jesus") {
-        return jesusImage;
-    } else if (state === "Prime") {
-        return primeImage;
-    } else {
-        return null; // Neutral state
-    }
-}
-
-/*
-===========================================================
-STICKER RENDERING
-This section handles drawing per-person stickers
-anchored to shoulder positions.
-===========================================================
-*/
-
-// Draw sticker for a specific person anchored to their shoulders
-function drawPersonSticker(personIndex, pose, scaleX, scaleY) {
-    if (personIndex >= personOverlayImages.length) return;
-
-    let overlayImage = personOverlayImages[personIndex];
-    if (!overlayImage) return; // No image to draw
-
-    // Get shoulder keypoints
-    let leftShoulder = pose.keypoints.find((k) => k.name === "left_shoulder");
-    let rightShoulder = pose.keypoints.find((k) => k.name === "right_shoulder");
-
-    // Safety check for shoulder keypoints
-    if (!leftShoulder || !rightShoulder) return;
-    if (leftShoulder.confidence < 0.3 || rightShoulder.confidence < 0.3) return;
-
-    // Calculate anchor point (midpoint between shoulders)
-    let cx = (leftShoulder.x + rightShoulder.x) / 2;
-    let cy = (leftShoulder.y + rightShoulder.y) / 2;
-
-    // Calculate shoulder width for scaling
-    let shoulderWidth = Math.abs(leftShoulder.x - rightShoulder.x);
-
-    // Scale the sticker relative to shoulder width
-    let w = 1.8 * shoulderWidth;
-    let h = w * (overlayImage.height / overlayImage.width);
-
-    // Apply scaling factors for fullscreen
-    cx *= scaleX;
-    cy *= scaleY;
-    w *= scaleX;
-    h *= scaleY;
-
-    // Draw the sticker centered at the shoulder midpoint
-    image(overlayImage, cx - w/2, cy - h/2, w, h);
 }
 
 // Callback function to handle detected poses
 function gotPoses(results) {
+    console.log("Got poses:", results);
     poses = results;
 }
 
@@ -345,7 +288,7 @@ and video toggle functionality.
 function setupControls() {
     const fullscreenBtn = document.getElementById('fullscreen-btn');
     const videoToggleBtn = document.getElementById('video-toggle-btn');
-    const hideTrackingBtn = document.getElementById('generate-images-btn'); // Reusing the same button ID
+    const generateImagesBtn = document.getElementById('generate-images-btn');
 
     // Fullscreen functionality
     fullscreenBtn.addEventListener('click', toggleFullscreen);
@@ -353,8 +296,8 @@ function setupControls() {
     // Video toggle functionality
     videoToggleBtn.addEventListener('click', toggleVideo);
 
-    // Hide tracking toggle functionality
-    hideTrackingBtn.addEventListener('click', toggleTracking);
+    // Generate images toggle functionality
+    generateImagesBtn.addEventListener('click', toggleImageGeneration);
 
     // Listen for ESC key to exit fullscreen
     document.addEventListener('keydown', function(event) {
@@ -407,19 +350,18 @@ function toggleVideo() {
     videoToggleBtn.textContent = showVideo ? 'Hide Video' : 'Show Video';
 }
 
-// Toggle tracking visibility (skeleton lines and keypoints)
-function toggleTracking() {
-    const hideTrackingBtn = document.getElementById('generate-images-btn');
+function toggleImageGeneration() {
+    const generateImagesBtn = document.getElementById('generate-images-btn');
 
-    showTracking = !showTracking;
-    hideTrackingBtn.textContent = showTracking ? 'Hide Tracking' : 'Show Tracking';
+    generateImagesEnabled = !generateImagesEnabled;
+    generateImagesBtn.textContent = generateImagesEnabled ? 'Generate Images' : 'Images Disabled';
 
-    // Update button styling
-    if (showTracking) {
-        hideTrackingBtn.classList.remove('btn-disabled');
-        hideTrackingBtn.classList.add('btn-1');
+    // Update button styling to show disabled state
+    if (generateImagesEnabled) {
+        generateImagesBtn.classList.remove('btn-disabled');
+        generateImagesBtn.classList.add('btn-1');
     } else {
-        hideTrackingBtn.classList.remove('btn-1');
-        hideTrackingBtn.classList.add('btn-disabled');
+        generateImagesBtn.classList.remove('btn-1');
+        generateImagesBtn.classList.add('btn-disabled');
     }
 }
