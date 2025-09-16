@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Between Verses</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #ffffff;
+            height: 100vh;
+            display: flex;
+            color: #333333;
+            overflow: hidden;
+        }
+
+        .sidebar {
+            width: 300px;
+            background: #ffffff;
+            border-right: 2px solid #e0e0e0;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+            z-index: 100;
+            transition: transform 0.3s ease;
+        }
+
+        .sidebar.collapsed {
+            transform: translateX(-100%);
+            width: 300px;
+        }
+
+        .sidebar-header {
+            padding: 20px;
+            border-bottom: 1px solid #e0e0e0;
+            background: #f8f9fa;
+        }
+
+        .sidebar-title {
+            font-size: 1.3rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 10px;
+            color: #333333;
+        }
+
+        .sidebar-subtitle {
+            font-size: 0.9rem;
+            color: #666666;
+            line-height: 1.4;
+        }
+
+        .sidebar-content {
+            flex: 1;
+            padding: 20px;
+        }
+
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            position: relative;
+            background: #ffffff;
+        }
+
+        .container {
+            max-width: 1200px;
+            width: 100%;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5rem;
+            color: #333333;
+        }
+
+        .video-container {
+            position: relative;
+            width: 100%;
+            max-width: 800px;
+            margin: 0 auto;
+            background: #f8f9fa;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+            border: 1px solid #dee2e6;
+        }
+
+        #outputCanvas {
+            width: 100%;
+            display: block;
+        }
+
+        #overlayCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        #videoElement {
+            display: none;
+        }
+
+        .control-section {
+            margin-bottom: 25px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .control-section:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+        }
+
+        .control-group {
+            margin-bottom: 20px;
+        }
+
+        .control-group label,
+        .section-title {
+            display: block;
+            margin-bottom: 12px;
+            font-weight: 600;
+            font-size: 0.95rem;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: #333333;
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            margin-bottom: 12px;
+            cursor: pointer;
+        }
+
+        .checkbox-group input[type="checkbox"] {
+            margin-right: 10px;
+            width: 18px;
+            height: 18px;
+            accent-color: #007bff;
+        }
+
+        .checkbox-label {
+            font-size: 0.9rem;
+            color: #333333;
+            font-weight: normal;
+            text-transform: none;
+            letter-spacing: normal;
+        }
+
+        .tracking-button {
+            width: 100%;
+            padding: 12px 16px;
+            background: #f8f9fa;
+            color: #333333;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .tracking-button:hover {
+            background: #e9ecef;
+            border-color: #adb5bd;
+            transform: translateY(-1px);
+        }
+
+        .tracking-button.active {
+            background: #007bff;
+            border-color: #007bff;
+            color: white;
+        }
+
+        .tracking-button.active .tracking-status {
+            color: #4ade80;
+            animation: pulse-dot 2s infinite;
+        }
+
+        .tracking-button:not(.active) .tracking-status {
+            color: #ef4444;
+        }
+
+        .tracking-status {
+            font-size: 1.2rem;
+            line-height: 1;
+        }
+
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .sidebar-toggle {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: rgba(255,255,255,0.7);
+            padding: 5px;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+
+        .sidebar-toggle:hover {
+            background: rgba(255,255,255,0.1);
+            color: white;
+        }
+
+        .sidebar-show-button {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            z-index: 200;
+            display: none;
+            transition: all 0.3s;
+        }
+
+        .sidebar-show-button:hover {
+            background: #0056b3;
+        }
+
+        button {
+            padding: 10px 16px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            width: 100%;
+            margin-bottom: 8px;
+        }
+
+        .button-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-bottom: 15px;
+        }
+
+        .button-group.single {
+            grid-template-columns: 1fr;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+        }
+
+        .btn-secondary {
+            background: rgba(255,255,255,0.2);
+            color: white;
+            backdrop-filter: blur(10px);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255,255,255,0.3);
+        }
+
+        .btn-secondary.active {
+            background: rgba(255,255,255,0.4);
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        input[type="range"] {
+            width: 100%;
+            margin: 8px 0;
+        }
+
+        .slider-container {
+            margin-bottom: 15px;
+        }
+
+        .slider-label {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+            font-size: 0.85rem;
+        }
+
+        .slider-value {
+            background: rgba(255,255,255,0.1);
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-weight: 600;
+        }
+
+        .accordion-section {
+            margin-bottom: 20px;
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .accordion-header {
+            padding: 15px;
+            background: rgba(255,255,255,0.1);
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.3s ease;
+        }
+
+        .accordion-header:hover {
+            background: rgba(255,255,255,0.15);
+        }
+
+        .accordion-header.active {
+            background: rgba(255,255,255,0.2);
+        }
+
+        .accordion-title {
+            font-weight: 600;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .accordion-icon {
+            font-size: 1.2rem;
+            transition: transform 0.3s ease;
+        }
+
+        .accordion-header.active .accordion-icon {
+            transform: rotate(180deg);
+        }
+
+        .accordion-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+            background: rgba(0,0,0,0.2);
+        }
+
+        .accordion-content.active {
+            max-height: 300px;
+        }
+
+        .accordion-body {
+            padding: 15px;
+        }
+
+        .pose-test-button {
+            width: 100%;
+            padding: 10px 15px;
+            margin-bottom: 8px;
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            color: #333333;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .pose-test-button:hover {
+            background: #e9ecef;
+            transform: translateX(3px);
+            border-color: #adb5bd;
+        }
+
+        .pose-test-button.active {
+            background: #28a745;
+            border-color: #28a745;
+            color: white;
+        }
+
+        .pose-emoji {
+            font-size: 1.1rem;
+        }
+
+        .pose-info {
+            flex: 1;
+            text-align: left;
+            margin-left: 10px;
+        }
+
+        .pose-name {
+            font-weight: 600;
+            margin-bottom: 2px;
+        }
+
+        .pose-desc {
+            font-size: 0.75rem;
+            opacity: 0.7;
+        }
+
+        .featured-pose {
+            border: 2px solid #ffc107;
+            background: linear-gradient(135deg, rgba(255, 193, 7, 0.1), rgba(255, 193, 7, 0.05));
+        }
+
+        .featured-pose:hover {
+            border-color: #ffc107;
+            background: linear-gradient(135deg, rgba(255, 193, 7, 0.2), rgba(255, 193, 7, 0.1));
+            transform: translateX(5px);
+        }
+
+        .featured-pose .pose-name {
+            font-weight: 700;
+            color: #856404;
+        }
+
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .file-label {
+            display: inline-block;
+            padding: 10px 20px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .file-label:hover {
+            background: rgba(255,255,255,0.3);
+        }
+
+        .texture-panel {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 33vh;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.7), rgba(0,0,0,0.9));
+            backdrop-filter: blur(20px);
+            border-top: 2px solid rgba(255,255,255,0.2);
+            display: flex;
+            flex-direction: column;
+            z-index: 100;
+            transition: transform 0.4s ease;
+            transform: translateY(100%);
+        }
+
+        .texture-panel.visible {
+            transform: translateY(0);
+        }
+
+        .texture-toggle {
+            position: absolute;
+            top: -40px;
+            right: 20px;
+            padding: 10px 20px;
+            background: rgba(0,0,0,0.8);
+            border: 1px solid rgba(255,255,255,0.3);
+            border-radius: 20px 20px 0 0;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .texture-toggle:hover {
+            background: rgba(0,0,0,0.9);
+            border-color: rgba(255,255,255,0.5);
+        }
+
+        .texture-header {
+            padding: 15px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            position: relative;
+        }
+
+        .texture-close {
+            position: absolute;
+            top: 15px;
+            right: 20px;
+            width: 30px;
+            height: 30px;
+            border: none;
+            background: rgba(255,255,255,0.1);
+            border-radius: 50%;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            z-index: 101;
+        }
+
+        .texture-close:hover {
+            background: rgba(255,255,255,0.2);
+            transform: scale(1.1);
+        }
+
+        .texture-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .category-tabs {
+            display: flex;
+            gap: 10px;
+        }
+
+        .category-tab {
+            padding: 8px 16px;
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.9rem;
+        }
+
+        .category-tab:hover {
+            background: rgba(255,255,255,0.2);
+        }
+
+        .category-tab.active {
+            background: rgba(255,255,255,0.3);
+            border-color: white;
+        }
+
+        .texture-grid {
+            flex: 1;
+            padding: 20px;
+            overflow-x: auto;
+            overflow-y: hidden;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .texture-item {
+            flex-shrink: 0;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .texture-thumb {
+            width: 120px;
+            height: 120px;
+            border-radius: 12px;
+            border: 3px solid transparent;
+            transition: all 0.3s ease;
+            object-fit: cover;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+
+        .texture-item:hover .texture-thumb {
+            transform: translateY(-5px) scale(1.05);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+        }
+
+        .texture-thumb.active {
+            border-color: white;
+            box-shadow: 0 0 30px rgba(255,255,255,0.6);
+        }
+
+        .texture-name {
+            margin-top: 8px;
+            font-size: 0.85rem;
+            opacity: 0.9;
+            max-width: 120px;
+        }
+
+        .texture-country {
+            font-size: 0.75rem;
+            opacity: 0.6;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-top: 2px;
+        }
+
+        .status {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            right: 20px;
+            text-align: center;
+            padding: 12px;
+            background: rgba(255,255,255,0.95);
+            border-radius: 8px;
+            border: 1px solid #dee2e6;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            z-index: 50;
+            color: #333333;
+        }
+
+        .loading {
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <a href="index.html" style="color: #666666; text-decoration: none; font-size: 0.9rem; margin-bottom: 10px; display: block; position: relative; z-index: 10;">&larr; Back to Home</a>
+            <div class="sidebar-title">Between Verses</div>
+        </div>
+
+        <div class="sidebar-content">
+
+            <div class="control-section">
+                <div class="section-title">Layers</div>
+                <div class="control-group">
+                    <label class="checkbox-group">
+                        <input type="checkbox" id="buildingOverlay" checked>
+                        <span class="checkbox-label">Building Overlay</span>
+                    </label>
+                    <label class="checkbox-group">
+                        <input type="checkbox" id="natureOverlay" checked>
+                        <span class="checkbox-label">Nature Overlay</span>
+                    </label>
+                    <label class="checkbox-group">
+                        <input type="checkbox" id="shoulderStickers" checked>
+                        <span class="checkbox-label">Shoulder Stickers</span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="control-section">
+                <div class="section-title">Body Tracking</div>
+                <div class="control-group">
+                    <button class="tracking-button active" id="poseDetection">
+                        <span class="tracking-status">●</span>
+                        Auto Tracking ON
+                    </button>
+                </div>
+
+                <div class="control-group" style="margin-top: 20px;">
+                    <div class="pose-test-button" data-pose="neutral">
+                        <span class="pose-emoji">🧍</span>
+                        <div class="pose-info">
+                            <div class="pose-name">Neutral</div>
+                            <div class="pose-desc">Relaxed standing position</div>
+                        </div>
+                    </div>
+
+                    <div class="pose-test-button featured-pose" data-pose="mountain">
+                        <span class="pose-emoji">🗼</span>
+                        <div class="pose-info">
+                            <div class="pose-name">Prime Tower</div>
+                            <div class="pose-desc">Both arms lifted up → Iguazu Falls</div>
+                        </div>
+                    </div>
+
+                    <div class="pose-test-button featured-pose" data-pose="jesus">
+                        <span class="pose-emoji">🗽</span>
+                        <div class="pose-info">
+                            <div class="pose-name">Cristo Redentor</div>
+                            <div class="pose-desc">Arms to sides → Jungfraujoch</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="control-section">
+                <div class="section-title">Display</div>
+                <div class="control-group">
+                    <button class="tracking-button" id="fullscreenBtn">
+                        📺 Fullscreen
+                    </button>
+                    <button class="tracking-button" id="trackingToggleBtn">
+                        🦴 Hide Skeleton
+                    </button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <div class="main-content">
+        <div class="container">
+
+            <div class="video-container">
+                <video id="videoElement" autoplay playsinline></video>
+                <canvas id="outputCanvas"></canvas>
+                <canvas id="overlayCanvas"></canvas>
+            </div>
+
+            <div class="status" id="status">
+                <span class="loading">Initializing camera and AI models...</span>
+            </div>
+
+        </div>
+    </div>
+
+
+
+    <!-- Layer System -->
+    <script src="layers/BaseLayer.js"></script>
+    <script src="layers/BackgroundLayer.js"></script>
+    <script src="layers/BuildingLayer.js"></script>
+    <script src="layers/NatureLayer.js"></script>
+    <script src="layers/LayerManager.js"></script>
+
+    <!-- Main Application -->
+    <script src="segmentation.js"></script>
+</body>
+</html>

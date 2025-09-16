@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(open segmentation.html)",
+      "Bash(python3:*)",
+      "Bash(open http://localhost:8000/segmentation.html)",
+      "Bash(grep:*)",
+      "Bash(open http://localhost:8080/app.html)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

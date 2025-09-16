@@ -1,68 +1,249 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <!-- Specifies the document type and language for the browser and accessibility tools -->
-    <meta charset="UTF-8"> <!-- Sets the character encoding to UTF-8 for global compatibility -->
-    <meta name="viewport" content="width=device-width, initial-scale=1.0"> <!-- Ensures responsiveness on all devices -->
-    <title>EXPOLAT</title> <!-- Defines the title displayed on the browser tab -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Between Verses </title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
-    <!-- Adds a favicon (icon in the browser tab) -->
-    <link rel="icon" href="favicon.png">
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #ffffff;
+            min-height: 100vh;
+            color: #333333;
+        }
 
-    <!-- Links to Bootstrap CSS for pre-built responsive design and styling -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+        .hero-section {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 40px 20px;
+        }
 
-    <!-- Links to Google Fonts for custom typography -->
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@100;200;300;400;500;600;700;800;900&family=Inter:wght@100;200;300;400;500;600;700;800;900&subset=latin&display=swap" rel="stylesheet">
+        .hero-content {
+            max-width: 900px;
+            background: #ffffff;
+            border-radius: 20px;
+            padding: 60px 40px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.1);
+            border: 2px solid #e0e0e0;
+        }
 
-    <!-- Links to the custom CSS file for additional styles -->
-    <link href="styles.css" rel="stylesheet">
+        h1 {
+            font-size: 4rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            margin-bottom: 20px;
+            color: #333333;
+        }
 
-    <!-- Includes p5.js for creative coding and interactive visualizations -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.6.0/p5.js"></script>
+        .subtitle {
+            font-size: 1.3rem;
+            color: #666666;
+            margin-bottom: 50px;
+            line-height: 1.6;
+        }
 
-    <!-- Includes ml5.js for using machine learning in creative projects -->
-    <script src="https://unpkg.com/ml5@1/dist/ml5.js"></script>
+        .apps-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+
+        .single-app-container {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 40px;
+        }
+
+        .single-app-container .app-card {
+            max-width: 500px;
+            width: 100%;
+        }
+
+        .app-card {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 30px;
+            border: 2px solid #e0e0e0;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            color: #333333;
+            display: block;
+        }
+
+        .app-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.15);
+            background: #ffffff;
+            border-color: #007bff;
+            color: #333333;
+        }
+
+        .app-icon {
+            font-size: 3rem;
+            margin-bottom: 20px;
+            display: block;
+        }
+
+        .app-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 15px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .app-description {
+            font-size: 1rem;
+            opacity: 0.8;
+            line-height: 1.5;
+            margin-bottom: 20px;
+        }
+
+        .app-features {
+            list-style: none;
+            text-align: left;
+        }
+
+        .app-features li {
+            font-size: 0.9rem;
+            opacity: 0.7;
+            margin-bottom: 8px;
+            padding-left: 20px;
+            position: relative;
+        }
+
+        .app-features li:before {
+            content: "•";
+            position: absolute;
+            left: 0;
+            color: #007bff;
+            font-weight: bold;
+        }
+
+        .pose-instructions {
+            margin-top: 50px;
+        }
+
+        .pose-instructions h3 {
+            font-size: 1.5rem;
+            margin-bottom: 30px;
+            color: #333333;
+        }
+
+        .pose-cards {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .pose-card {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            border: 2px solid #e0e0e0;
+        }
+
+        .pose-icon {
+            width: 80px;
+            height: 80px;
+            margin-bottom: 15px;
+        }
+
+        .pose-card h5 {
+            font-size: 1.2rem;
+            margin-bottom: 10px;
+            font-weight: 600;
+            color: #333333;
+        }
+
+        .pose-card p {
+            font-size: 0.9rem;
+            color: #666666;
+            line-height: 1.4;
+        }
+
+        .tech-info {
+            margin-top: 40px;
+            font-size: 0.9rem;
+            color: #888888;
+            line-height: 1.4;
+        }
+
+        @media (max-width: 768px) {
+            .apps-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .single-app-container .app-card {
+                max-width: 100%;
+                margin: 0 10px;
+            }
+
+            .pose-cards {
+                grid-template-columns: 1fr;
+            }
+
+            h1 {
+                font-size: 2.5rem;
+            }
+
+            .hero-content {
+                padding: 40px 20px;
+            }
+        }
+    </style>
 </head>
 <body>
-    <section id="video-section" class="d-flex justify-content-center align-items-center my-5">
-        <!-- Main interactive section with a title and description -->
-        <div class="container">
-            <h1 class="text-center">Expolat Prototype</h1> <!-- Game title -->
+    <div class="hero-section">
+        <div class="hero-content">
+            <h1>Between Verses</h1>
 
-            <!-- Wrapper for video-related content (likely interactive) -->
-            <div id="video-wrapper" class="d-flex justify-content-center align-items-center"></div>
 
-               <!-- Control buttons -->
-               <div class="controls-container mt-3 d-flex justify-content-center gap-3">
-                   <button id="fullscreen-btn" class="btn btn-1">Fullscreen</button>
-                   <button id="video-toggle-btn" class="btn btn-1">Hide Video</button>
-                   <button id="generate-images-btn" class="btn btn-1">Hide Tracking</button>
-               </div>
+            <div class="single-app-container">
+                <a href="app.html" class="app-card" style="text-decoration: none;">
+                    <span class="app-icon">✨</span>
+                    <div class="app-title">Enter Experience</div>
 
-            <!-- Pose Instructions -->
-            <div class="pose-instructions mt-4">
-                <div class="row justify-content-center">
-                    <div class="col-md-4 text-center mb-3">
-                        <div class="pose-card">
-                            <img src="prime.svg" alt="Prime Tower pose" class="pose-icon">
-                            <h5>Prime Tower</h5>
-                            <p class="small">Both hands on top of head, close together</p>
-                        </div>
+                </a>
+            </div>
+
+            <div class="pose-instructions">
+                <h3>Supported Poses</h3>
+                <div class="pose-cards">
+                    <div class="pose-card">
+                        <img src="images/prime.svg" alt="Prime Tower pose" class="pose-icon">
+                        <h5>Prime Tower</h5>
+                        <p>Both hands on top of head, close together</p>
                     </div>
-                    <div class="col-md-4 text-center mb-3">
-                        <div class="pose-card">
-                            <img src="jesus.svg" alt="Jesus pose" class="pose-icon">
-                            <h5>Jesus</h5>
-                            <p class="small">Arms extended horizontally to the sides</p>
-                        </div>
+                    <div class="pose-card">
+                        <div class="pose-icon" style="background: url('images/cristoredentor.png') center/contain no-repeat; width: 80px; height: 80px; margin: 0 auto 15px; opacity: 0.9;"></div>
+                        <h5>Cristo Redentor</h5>
+                        <p>Arms extended horizontally to the sides</p>
                     </div>
                 </div>
             </div>
-        </div>
-    </section>
 
-    <!-- Links to a custom JavaScript file for functionality -->
-    <script src="script.js"></script>
+            <div class="tech-info">
+                Powered by MediaPipe AI • ml5.js • p5.js • Three-layer rendering system
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
