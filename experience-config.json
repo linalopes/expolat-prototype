@@ -10,13 +10,17 @@
       },
       "textures": {
         "building": {
-          "primary": "prime.png"
+          "variants": ["prime.png"]
         },
         "nature": {
-          "image": "iguazu.png",
-          "position": "bottom_third",
-          "opacity": 1.0,
-          "blendMode": "normal"
+          "variants": [
+            {
+              "image": "iguazu.png",
+              "position": "bottom_third",
+              "opacity": 1.0,
+              "blendMode": "normal"
+            }
+          ]
         }
       }
     },
@@ -30,13 +34,17 @@
       },
       "textures": {
         "building": {
-          "primary": "cristoredentor.png"
+          "variants": ["cristoredentor.png"]
         },
         "nature": {
-          "image": "aletsch.png",
-          "position": "bottom_third",
-          "opacity": 1.0,
-          "blendMode": "normal"
+          "variants": [
+            {
+              "image": "aletsch.png",
+              "position": "bottom_third",
+              "opacity": 1.0,
+              "blendMode": "normal"
+            }
+          ]
         }
       }
     },
@@ -45,13 +53,17 @@
       "description": "Default relaxed pose",
       "textures": {
         "building": {
-          "primary": "prime.png"
+          "variants": ["prime.png"]
         },
         "nature": {
-          "image": "pantanal.webp",
-          "position": "bottom_third",
-          "opacity": 0.7,
-          "blendMode": "normal"
+          "variants": [
+            {
+              "image": "pantanal.webp",
+              "position": "bottom_third",
+              "opacity": 0.7,
+              "blendMode": "normal"
+            }
+          ]
         }
       }
     }

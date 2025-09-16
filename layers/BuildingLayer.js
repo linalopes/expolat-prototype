@@ -58,7 +58,13 @@ class BuildingLayer extends BaseLayer {
     }
 
     async applyImageTexture(pixels, mask) {
-        if (!this.textureImage.complete || !this.config.currentTexture) {
+        // Check if texture image is valid and properly loaded
+        if (!this.textureImage ||
+            !this.textureImage.complete ||
+            !this.config.currentTexture ||
+            this.textureImage.naturalWidth === 0 ||
+            this.textureImage.naturalHeight === 0) {
+            console.warn('Texture image is not ready or failed to load, skipping texture application');
             return;
         }
 
@@ -78,11 +84,16 @@ class BuildingLayer extends BaseLayer {
         const textureCtx = textureCanvas.getContext('2d');
 
         // Scale the texture to fit within the bounding box
-        textureCtx.drawImage(
-            this.textureImage,
-            boundingBox.minX, boundingBox.minY,
-            boundingBox.width, boundingBox.height
-        );
+        try {
+            textureCtx.drawImage(
+                this.textureImage,
+                boundingBox.minX, boundingBox.minY,
+                boundingBox.width, boundingBox.height
+            );
+        } catch (error) {
+            console.error('Failed to draw texture image:', error);
+            return;
+        }
 
         const textureData = textureCtx.getImageData(0, 0, textureCanvas.width, textureCanvas.height);
 
@@ -91,16 +102,34 @@ class BuildingLayer extends BaseLayer {
     }
 
     async applyPatternTexture(pixels, mask) {
+        // Check if texture image is valid before creating pattern
+        if (!this.textureImage ||
+            !this.textureImage.complete ||
+            this.textureImage.naturalWidth === 0 ||
+            this.textureImage.naturalHeight === 0) {
+            console.warn('Texture image is not ready for pattern creation, skipping pattern application');
+            return;
+        }
+
         const textureCanvas = document.createElement('canvas');
         textureCanvas.width = this.canvas.width;
         textureCanvas.height = this.canvas.height;
         const textureCtx = textureCanvas.getContext('2d');
 
-        const pattern = textureCtx.createPattern(this.textureImage, 'repeat');
-        textureCtx.fillStyle = pattern;
-        textureCtx.fillRect(0, 0, textureCanvas.width, textureCanvas.height);
-        const textureData = textureCtx.getImageData(0, 0, textureCanvas.width, textureCanvas.height);
+        try {
+            const pattern = textureCtx.createPattern(this.textureImage, 'repeat');
+            if (!pattern) {
+                console.warn('Failed to create pattern from texture image');
+                return;
+            }
+            textureCtx.fillStyle = pattern;
+            textureCtx.fillRect(0, 0, textureCanvas.width, textureCanvas.height);
+        } catch (error) {
+            console.error('Failed to create or apply pattern texture:', error);
+            return;
+        }
 
+        const textureData = textureCtx.getImageData(0, 0, textureCanvas.width, textureCanvas.height);
         this.blendTextureWithMask(pixels, textureData.data, mask);
     }
 
@@ -250,11 +279,18 @@ class BuildingLayer extends BaseLayer {
 
         if (textureType === 'image') {
             this.textureImage.onload = () => {
+                console.log(`✓ Texture loaded successfully: ${texturePath}`);
                 this.invalidate();
             };
 
             this.textureImage.onerror = (e) => {
                 console.error('Failed to load texture:', texturePath, e);
+                // Clear the current texture to prevent broken image errors
+                this.config.currentTexture = null;
+                // Fallback to color mode
+                this.config.textureType = 'color';
+                console.log('Falling back to color texture mode due to image load failure');
+                this.invalidate();
             };
 
             this.textureImage.src = texturePath;

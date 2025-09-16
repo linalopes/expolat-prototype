@@ -42,6 +42,21 @@ class PersonSegmentation {
         this.currentSimulatedPose = null;
         this.poseDetectionEnabled = true;
 
+        // Multi-person shoulder stickers
+        this.shoulderStickersEnabled = true;
+        this.personStates = []; // Current state for each person
+        this.personStableStates = []; // Stable state for each person
+        this.personStableCounters = []; // Counter for state stability
+        this.personOverlayImages = []; // Overlay image for each person
+        this.STABLE_FRAMES = 12; // Number of frames to wait before considering a state stable
+
+        // Shoulder sticker images
+        this.shoulderStickerImages = new Map();
+
+        // Display controls
+        this.videoVisible = true;
+        this.skeletonVisible = false;
+
         // Initialize texture cache for better performance
         this.textureCache = new Map();
         this.textureImage = null;
@@ -64,6 +79,7 @@ class PersonSegmentation {
             await this.loadPoseMapping();
             this.setupLayers();
             this.setupControls();
+            this.loadShoulderStickerImages();
             this.startProcessing();
 
             document.getElementById('status').innerHTML = '<span>✓ Ready! AI pose detection and texture mapping active.</span>';
@@ -75,6 +91,20 @@ class PersonSegmentation {
                 natureLayer.setOverlay(this.currentOverlay);
                 console.log('Nature layer enabled state:', natureLayer.config.enabled);
             }
+
+            // Add fullscreen change event listeners
+            document.addEventListener('fullscreenchange', () => {
+                console.log('Fullscreen change event fired:', !!document.fullscreenElement);
+                this.onFullscreenChange(!!document.fullscreenElement);
+            });
+            document.addEventListener('webkitfullscreenchange', () => {
+                console.log('WebKit fullscreen change event fired:', !!document.webkitFullscreenElement);
+                this.onFullscreenChange(!!document.webkitFullscreenElement);
+            });
+            document.addEventListener('mozfullscreenchange', () => {
+                console.log('Mozilla fullscreen change event fired:', !!document.mozFullScreenElement);
+                this.onFullscreenChange(!!document.mozFullScreenElement);
+            });
         } catch (error) {
             console.error('Initialization error:', error);
             document.getElementById('status').innerHTML = '<span style="color: #ff6b6b;">Error: ' + error.message + '</span>';
@@ -199,6 +229,15 @@ class PersonSegmentation {
     onPoseResults(results) {
         this.poses = results.poseLandmarks ? [results] : [];
         this.detectPose();
+
+        // Process multi-person shoulder stickers
+        if (this.shoulderStickersEnabled && this.poses && this.poses.length > 0) {
+            this.poses.forEach((pose, personIndex) => {
+                const detectedPose = this.analyzePersonPose([pose], 0);
+                this.processPersonStateChange(personIndex, detectedPose);
+            });
+        }
+
         // Nature layer is handled by LayerManager now
     }
 
@@ -240,6 +279,15 @@ class PersonSegmentation {
 
         // Put processed image data back to canvas
         this.ctx.putImageData(imageData, 0, 0);
+
+        // Draw shoulder stickers for each person
+        if (this.shoulderStickersEnabled && this.poses && this.poses.length > 0) {
+            this.poses.forEach((pose, personIndex) => {
+                if (pose.poseLandmarks) {
+                    this.drawPersonShoulderSticker({ keypoints: this.convertLandmarksToKeypoints(pose.poseLandmarks) }, personIndex);
+                }
+            });
+        }
 
         // Draw pose keypoints if enabled
         if (this.textureConfig?.settings?.showPoseKeypoints) {
@@ -382,7 +430,20 @@ class PersonSegmentation {
 
         // Update building texture if building overlay is enabled
         if (pose.textures && pose.textures.building && this.settings.buildingOverlayEnabled) {
-            const textureFile = pose.textures.building.primary;
+            const buildingTextures = pose.textures.building;
+            let textureFile = null;
+
+            // Handle both old and new format
+            if (buildingTextures.variants && Array.isArray(buildingTextures.variants)) {
+                // New variant format - randomly select from available options
+                const randomIndex = Math.floor(Math.random() * buildingTextures.variants.length);
+                textureFile = buildingTextures.variants[randomIndex];
+                console.log(`Selected building texture variant ${randomIndex + 1}/${buildingTextures.variants.length}: ${textureFile}`);
+            } else if (buildingTextures.primary) {
+                // Legacy format support
+                textureFile = buildingTextures.primary;
+            }
+
             if (textureFile) {
                 this.currentTexture = `images/${textureFile}`;
                 this.buildingLayer.setTexture(this.currentTexture, 'image');
@@ -395,8 +456,24 @@ class PersonSegmentation {
             console.log('Building overlay disabled, clearing textures');
         }
 
-        // Update nature layer
-        this.currentOverlay = pose.textures?.nature || {
+        // Update nature layer with variant support
+        let selectedNatureOverlay = null;
+        if (pose.textures?.nature) {
+            const natureTextures = pose.textures.nature;
+
+            // Handle both old and new format
+            if (natureTextures.variants && Array.isArray(natureTextures.variants)) {
+                // New variant format - randomly select from available options
+                const randomIndex = Math.floor(Math.random() * natureTextures.variants.length);
+                selectedNatureOverlay = natureTextures.variants[randomIndex];
+                console.log(`Selected nature texture variant ${randomIndex + 1}/${natureTextures.variants.length}:`, selectedNatureOverlay);
+            } else if (natureTextures.image) {
+                // Legacy format support
+                selectedNatureOverlay = natureTextures;
+            }
+        }
+
+        this.currentOverlay = selectedNatureOverlay || {
             image: 'aletsch.png',
             opacity: 1.0,
             blendMode: 'normal'
@@ -924,6 +1001,23 @@ class PersonSegmentation {
             });
         }
 
+        // Shoulder stickers checkbox
+        const shoulderStickersCheckbox = document.getElementById('shoulderStickers');
+        if (shoulderStickersCheckbox) {
+            // Set initial state
+            shoulderStickersCheckbox.checked = this.shoulderStickersEnabled;
+
+            shoulderStickersCheckbox.addEventListener('change', () => {
+                this.shoulderStickersEnabled = shoulderStickersCheckbox.checked;
+                console.log('Shoulder stickers enabled:', this.shoulderStickersEnabled);
+
+                // Clear person overlays when disabled
+                if (!this.shoulderStickersEnabled) {
+                    this.personOverlayImages.fill(null);
+                }
+            });
+        }
+
         // Nature overlay checkbox
         const natureOverlayCheckbox = document.getElementById('natureOverlay');
         if (natureOverlayCheckbox) {
@@ -981,6 +1075,28 @@ class PersonSegmentation {
                 }, 2000);
             });
         });
+
+        // Display controls
+        this.setupDisplayControls();
+    }
+
+    setupDisplayControls() {
+        // Fullscreen button
+        const fullscreenBtn = document.getElementById('fullscreenBtn');
+        if (fullscreenBtn) {
+            fullscreenBtn.addEventListener('click', () => {
+                this.toggleFullscreen();
+            });
+        }
+
+
+        // Skeleton/tracking toggle button
+        const trackingToggleBtn = document.getElementById('trackingToggleBtn');
+        if (trackingToggleBtn) {
+            trackingToggleBtn.addEventListener('click', () => {
+                this.toggleSkeletonVisibility();
+            });
+        }
     }
 
     async loadTextureConfig() {
@@ -1053,6 +1169,410 @@ class PersonSegmentation {
         if (natureLayer && this.currentOverlay) {
             natureLayer.setOverlay(this.currentOverlay);
             natureLayer.invalidate();
+        }
+    }
+
+    // Multi-person shoulder sticker methods
+    async loadShoulderStickerImages() {
+        // Load all sticker image variants
+        const allStickerImages = [
+            'prime.svg', 'prime-tower.svg', 'tower-icon.svg',
+            'cristo.svg', 'cristoredentor.svg'
+        ];
+
+        const imagePromises = allStickerImages.map(filename => {
+            return new Promise((resolve) => {
+                const img = new Image();
+                img.crossOrigin = 'anonymous';
+                img.onload = () => resolve({ filename, img });
+                img.onerror = () => resolve({ filename, img: null });
+                img.src = `images/${filename}`;
+            });
+        });
+
+        const results = await Promise.all(imagePromises);
+        let loadedCount = 0;
+
+        results.forEach(({ filename, img }) => {
+            if (img) {
+                this.shoulderStickerImages.set(filename, img);
+                loadedCount++;
+                console.log(`✓ Loaded shoulder sticker variant: ${filename}`);
+            } else {
+                console.warn(`Failed to load shoulder sticker: ${filename}`);
+            }
+        });
+
+        console.log(`✓ Loaded ${loadedCount}/${allStickerImages.length} shoulder sticker variants`);
+    }
+
+    analyzePersonPose(poses, personIndex) {
+        if (!poses || poses.length <= personIndex) return 'unknown';
+
+        const pose = poses[personIndex];
+        if (!pose || !pose.keypoints) return 'unknown';
+
+        // Get key landmarks for pose detection
+        const leftShoulder = pose.keypoints.find(kp => kp.name === 'left_shoulder');
+        const rightShoulder = pose.keypoints.find(kp => kp.name === 'right_shoulder');
+        const leftWrist = pose.keypoints.find(kp => kp.name === 'left_wrist');
+        const rightWrist = pose.keypoints.find(kp => kp.name === 'right_wrist');
+        const nose = pose.keypoints.find(kp => kp.name === 'nose');
+
+        if (!leftShoulder || !rightShoulder || !leftWrist || !rightWrist || !nose) {
+            return 'unknown';
+        }
+
+        // Check confidence levels
+        const minConfidence = 0.3;
+        if (leftShoulder.score < minConfidence || rightShoulder.score < minConfidence ||
+            leftWrist.score < minConfidence || rightWrist.score < minConfidence ||
+            nose.score < minConfidence) {
+            return 'unknown';
+        }
+
+        // Cristo Redentor pose: arms extended horizontally
+        const leftArmHorizontal = Math.abs(leftWrist.y - leftShoulder.y) < 50;
+        const rightArmHorizontal = Math.abs(rightWrist.y - rightShoulder.y) < 50;
+        const armsExtended = (leftWrist.x < leftShoulder.x - 80) && (rightWrist.x > rightShoulder.x + 80);
+
+        if (leftArmHorizontal && rightArmHorizontal && armsExtended) {
+            return 'cristo';
+        }
+
+        // Prime Tower pose: both hands on top of head
+        const handsAboveHead = leftWrist.y < nose.y - 50 && rightWrist.y < nose.y - 50;
+        const handsClose = Math.abs(leftWrist.x - rightWrist.x) < 100;
+        const handsCentered = Math.abs((leftWrist.x + rightWrist.x) / 2 - nose.x) < 60;
+
+        if (handsAboveHead && handsClose && handsCentered) {
+            return 'prime';
+        }
+
+        return 'unknown';
+    }
+
+    resizePersonArrays(newSize) {
+        while (this.personStates.length < newSize) {
+            this.personStates.push('unknown');
+            this.personStableStates.push('unknown');
+            this.personStableCounters.push(0);
+            this.personOverlayImages.push(null);
+        }
+
+        // Trim arrays if needed
+        this.personStates.splice(newSize);
+        this.personStableStates.splice(newSize);
+        this.personStableCounters.splice(newSize);
+        this.personOverlayImages.splice(newSize);
+    }
+
+    processPersonStateChange(personIndex, detectedPose) {
+        // Initialize if needed
+        this.resizePersonArrays(personIndex + 1);
+
+        const currentState = this.personStates[personIndex];
+
+        if (detectedPose === currentState) {
+            this.personStableCounters[personIndex]++;
+        } else {
+            this.personStableCounters[personIndex] = 0;
+            this.personStates[personIndex] = detectedPose;
+        }
+
+        // Check if pose is stable
+        if (this.personStableCounters[personIndex] >= this.STABLE_FRAMES &&
+            this.personStableStates[personIndex] !== detectedPose) {
+
+            this.personStableStates[personIndex] = detectedPose;
+
+            // Select new sticker image for this person
+            if (detectedPose !== 'unknown') {
+                this.selectStickerImageFor(personIndex, detectedPose);
+                console.log(`Person ${personIndex + 1} stable pose: ${detectedPose}`);
+            } else {
+                this.personOverlayImages[personIndex] = null;
+            }
+        }
+    }
+
+    selectStickerImageFor(personIndex, poseType) {
+        // Map pose types to image files with multiple variants
+        const poseImageMap = {
+            'prime': ['prime.svg', 'prime-tower.svg', 'tower-icon.svg'],
+            'cristo': ['cristo.svg', 'cristoredentor.svg', 'cristoredentor.svg']
+        };
+
+        const availableImages = poseImageMap[poseType];
+        if (!availableImages || availableImages.length === 0) {
+            this.personOverlayImages[personIndex] = null;
+            return;
+        }
+
+        // Select random image from available options
+        const selectedImage = availableImages[Math.floor(Math.random() * availableImages.length)];
+        const img = this.shoulderStickerImages.get(selectedImage);
+
+        if (img) {
+            this.personOverlayImages[personIndex] = img;
+            console.log(`Person ${personIndex + 1} assigned sticker variant: ${selectedImage} (${availableImages.indexOf(selectedImage) + 1}/${availableImages.length})`);
+        } else {
+            this.personOverlayImages[personIndex] = null;
+            console.warn(`Sticker image not found for person ${personIndex + 1}: ${selectedImage}`);
+        }
+    }
+
+    drawPersonShoulderSticker(pose, personIndex) {
+        if (!this.shoulderStickersEnabled || !this.personOverlayImages[personIndex]) {
+            return;
+        }
+
+        const leftShoulder = pose.keypoints.find(kp => kp.name === 'left_shoulder');
+        const rightShoulder = pose.keypoints.find(kp => kp.name === 'right_shoulder');
+
+        if (!leftShoulder || !rightShoulder ||
+            leftShoulder.score < 0.3 || rightShoulder.score < 0.3) {
+            return;
+        }
+
+        // Calculate shoulder center and sticker dimensions
+        const centerX = (leftShoulder.x + rightShoulder.x) / 2;
+        const centerY = (leftShoulder.y + rightShoulder.y) / 2;
+        const shoulderDistance = Math.abs(rightShoulder.x - leftShoulder.x);
+        const stickerSize = Math.max(shoulderDistance * 1.2, 60);
+
+        // Draw the sticker
+        this.ctx.save();
+        this.ctx.globalAlpha = 0.9;
+        this.ctx.drawImage(
+            this.personOverlayImages[personIndex],
+            centerX - stickerSize / 2,
+            centerY - stickerSize / 2,
+            stickerSize,
+            stickerSize
+        );
+        this.ctx.restore();
+    }
+
+    convertLandmarksToKeypoints(landmarks) {
+        // Convert MediaPipe landmarks to format expected by shoulder sticker function
+        return [
+            { name: 'nose', x: landmarks[0].x * this.canvas.width, y: landmarks[0].y * this.canvas.height, score: landmarks[0].visibility },
+            { name: 'left_shoulder', x: landmarks[11].x * this.canvas.width, y: landmarks[11].y * this.canvas.height, score: landmarks[11].visibility },
+            { name: 'right_shoulder', x: landmarks[12].x * this.canvas.width, y: landmarks[12].y * this.canvas.height, score: landmarks[12].visibility },
+            { name: 'left_wrist', x: landmarks[15].x * this.canvas.width, y: landmarks[15].y * this.canvas.height, score: landmarks[15].visibility },
+            { name: 'right_wrist', x: landmarks[16].x * this.canvas.width, y: landmarks[16].y * this.canvas.height, score: landmarks[16].visibility }
+        ];
+    }
+
+    // Display control methods
+    toggleFullscreen() {
+        const sidebar = document.querySelector('.sidebar');
+
+        console.log('Fullscreen toggle clicked');
+        console.log('Current fullscreen element:', document.fullscreenElement);
+        console.log('Fullscreen enabled:', document.fullscreenEnabled);
+
+        if (!document.fullscreenElement) {
+            // Enter fullscreen
+            console.log('Attempting to enter fullscreen...');
+
+            if (document.documentElement.requestFullscreen) {
+                console.log('Using standard requestFullscreen');
+                document.documentElement.requestFullscreen().then(() => {
+                    console.log('Successfully entered fullscreen');
+                    // Auto-hide sidebar in fullscreen
+                    if (sidebar) {
+                        sidebar.style.transform = 'translateX(-100%)';
+                    }
+                    this.onFullscreenChange(true);
+                }).catch(err => {
+                    console.error('Failed to enter fullscreen:', err);
+                });
+            } else if (document.documentElement.webkitRequestFullscreen) {
+                console.log('Using webkit requestFullscreen');
+                document.documentElement.webkitRequestFullscreen();
+                setTimeout(() => {
+                    if (sidebar) sidebar.style.transform = 'translateX(-100%)';
+                    this.onFullscreenChange(true);
+                }, 100);
+            } else if (document.documentElement.mozRequestFullScreen) {
+                console.log('Using moz requestFullScreen');
+                document.documentElement.mozRequestFullScreen();
+                setTimeout(() => {
+                    if (sidebar) sidebar.style.transform = 'translateX(-100%)';
+                    this.onFullscreenChange(true);
+                }, 100);
+            } else {
+                console.warn('Fullscreen API not supported');
+                alert('Fullscreen is not supported in this browser');
+            }
+        } else {
+            // Exit fullscreen
+            console.log('Attempting to exit fullscreen...');
+
+            if (document.exitFullscreen) {
+                document.exitFullscreen().then(() => {
+                    console.log('Successfully exited fullscreen');
+                    this.onFullscreenChange(false);
+                }).catch(err => {
+                    console.error('Failed to exit fullscreen:', err);
+                });
+            } else if (document.webkitExitFullscreen) {
+                document.webkitExitFullscreen();
+                setTimeout(() => this.onFullscreenChange(false), 100);
+            } else if (document.mozCancelFullScreen) {
+                document.mozCancelFullScreen();
+                setTimeout(() => this.onFullscreenChange(false), 100);
+            }
+        }
+    }
+
+    onFullscreenChange(isFullscreen) {
+        const fullscreenBtn = document.getElementById('fullscreenBtn');
+        const sidebar = document.querySelector('.sidebar');
+
+        if (isFullscreen) {
+            // Update button text and hide sidebar
+            if (fullscreenBtn) fullscreenBtn.innerHTML = '📱 Exit Fullscreen';
+            if (sidebar) sidebar.style.transform = 'translateX(-100%)';
+
+            // Scale canvas to fit screen
+            this.scaleCanvasForFullscreen();
+        } else {
+            // Restore normal view
+            if (fullscreenBtn) fullscreenBtn.innerHTML = '📺 Fullscreen';
+            if (sidebar) sidebar.style.transform = 'translateX(0)';
+
+            // Restore original canvas size
+            this.restoreCanvasSize();
+        }
+    }
+
+    scaleCanvasForFullscreen() {
+        const canvas = this.canvas;
+        const overlayCanvas = this.overlayCanvas;
+        const videoContainer = document.querySelector('.video-container');
+
+        // Store original styles
+        this.originalCanvasStyles = {
+            canvas: {
+                width: canvas.style.width,
+                height: canvas.style.height,
+                position: canvas.style.position,
+                top: canvas.style.top,
+                left: canvas.style.left,
+                transform: canvas.style.transform,
+                zIndex: canvas.style.zIndex
+            },
+            overlay: {
+                width: overlayCanvas.style.width,
+                height: overlayCanvas.style.height,
+                position: overlayCanvas.style.position,
+                top: overlayCanvas.style.top,
+                left: overlayCanvas.style.left,
+                transform: overlayCanvas.style.transform,
+                zIndex: overlayCanvas.style.zIndex
+            },
+            container: {
+                position: videoContainer?.style.position,
+                width: videoContainer?.style.width,
+                height: videoContainer?.style.height,
+                top: videoContainer?.style.top,
+                left: videoContainer?.style.left,
+                transform: videoContainer?.style.transform,
+                zIndex: videoContainer?.style.zIndex
+            }
+        };
+
+        // Scale to screen size while maintaining aspect ratio
+        const scaleX = window.innerWidth / canvas.width;
+        const scaleY = window.innerHeight / canvas.height;
+        const scale = Math.min(scaleX, scaleY);
+
+        const scaledWidth = canvas.width * scale;
+        const scaledHeight = canvas.height * scale;
+
+        // Position video container for fullscreen
+        if (videoContainer) {
+            videoContainer.style.position = 'fixed';
+            videoContainer.style.top = '50%';
+            videoContainer.style.left = '50%';
+            videoContainer.style.transform = 'translate(-50%, -50%)';
+            videoContainer.style.width = `${scaledWidth}px`;
+            videoContainer.style.height = `${scaledHeight}px`;
+            videoContainer.style.zIndex = '1000';
+        }
+
+        // Scale canvases
+        canvas.style.width = `${scaledWidth}px`;
+        canvas.style.height = `${scaledHeight}px`;
+        overlayCanvas.style.width = `${scaledWidth}px`;
+        overlayCanvas.style.height = `${scaledHeight}px`;
+    }
+
+    restoreCanvasSize() {
+        const canvas = this.canvas;
+        const overlayCanvas = this.overlayCanvas;
+        const videoContainer = document.querySelector('.video-container');
+
+        // Restore original styles if they were stored
+        if (this.originalCanvasStyles) {
+            // Restore canvas styles
+            Object.assign(canvas.style, this.originalCanvasStyles.canvas);
+            Object.assign(overlayCanvas.style, this.originalCanvasStyles.overlay);
+
+            // Restore container styles
+            if (videoContainer && this.originalCanvasStyles.container) {
+                Object.assign(videoContainer.style, this.originalCanvasStyles.container);
+            }
+
+            this.originalCanvasStyles = null;
+        } else {
+            // Fallback: clear inline styles
+            canvas.style.width = '';
+            canvas.style.height = '';
+            canvas.style.position = '';
+            canvas.style.top = '';
+            canvas.style.left = '';
+            canvas.style.transform = '';
+            canvas.style.zIndex = '';
+
+            overlayCanvas.style.width = '';
+            overlayCanvas.style.height = '';
+            overlayCanvas.style.position = '';
+            overlayCanvas.style.top = '';
+            overlayCanvas.style.left = '';
+            overlayCanvas.style.transform = '';
+            overlayCanvas.style.zIndex = '';
+
+            if (videoContainer) {
+                videoContainer.style.position = '';
+                videoContainer.style.width = '';
+                videoContainer.style.height = '';
+                videoContainer.style.top = '';
+                videoContainer.style.left = '';
+                videoContainer.style.transform = '';
+                videoContainer.style.zIndex = '';
+            }
+        }
+    }
+
+
+    toggleSkeletonVisibility() {
+        const trackingToggleBtn = document.getElementById('trackingToggleBtn');
+
+        // Toggle skeleton visibility in config
+        if (this.textureConfig?.settings) {
+            this.textureConfig.settings.showPoseKeypoints = !this.textureConfig.settings.showPoseKeypoints;
+        } else {
+            this.skeletonVisible = !this.skeletonVisible;
+        }
+
+        const isVisible = this.textureConfig?.settings?.showPoseKeypoints || this.skeletonVisible;
+
+        if (trackingToggleBtn) {
+            trackingToggleBtn.innerHTML = isVisible ? '🦴 Hide Skeleton' : '🦴 Show Skeleton';
         }
     }
 

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EXPOLAT - Interactive Pose Detection</title>
+    <title>Between Verses </title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         * {
@@ -14,9 +14,9 @@
 
         body {
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: #ffffff;
             min-height: 100vh;
-            color: white;
+            color: #333333;
         }
 
         .hero-section {
@@ -30,12 +30,11 @@
 
         .hero-content {
             max-width: 900px;
-            background: rgba(0,0,0,0.3);
-            backdrop-filter: blur(20px);
+            background: #ffffff;
             border-radius: 20px;
             padding: 60px 40px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.4);
-            border: 1px solid rgba(255,255,255,0.2);
+            box-shadow: 0 20px 60px rgba(0,0,0,0.1);
+            border: 2px solid #e0e0e0;
         }
 
         h1 {
@@ -44,12 +43,12 @@
             text-transform: uppercase;
             letter-spacing: 3px;
             margin-bottom: 20px;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+            color: #333333;
         }
 
         .subtitle {
             font-size: 1.3rem;
-            opacity: 0.9;
+            color: #666666;
             margin-bottom: 50px;
             line-height: 1.6;
         }
@@ -61,23 +60,34 @@
             margin-bottom: 40px;
         }
 
+        .single-app-container {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 40px;
+        }
+
+        .single-app-container .app-card {
+            max-width: 500px;
+            width: 100%;
+        }
+
         .app-card {
-            background: rgba(255,255,255,0.1);
-            backdrop-filter: blur(10px);
+            background: #f8f9fa;
             border-radius: 15px;
             padding: 30px;
-            border: 1px solid rgba(255,255,255,0.2);
+            border: 2px solid #e0e0e0;
             transition: all 0.3s ease;
             text-decoration: none;
-            color: white;
+            color: #333333;
             display: block;
         }
 
         .app-card:hover {
             transform: translateY(-5px);
-            box-shadow: 0 15px 40px rgba(0,0,0,0.3);
-            background: rgba(255,255,255,0.15);
-            color: white;
+            box-shadow: 0 15px 40px rgba(0,0,0,0.15);
+            background: #ffffff;
+            border-color: #007bff;
+            color: #333333;
         }
 
         .app-icon {
@@ -118,7 +128,7 @@
             content: "•";
             position: absolute;
             left: 0;
-            color: #667eea;
+            color: #007bff;
             font-weight: bold;
         }
 
@@ -129,7 +139,7 @@
         .pose-instructions h3 {
             font-size: 1.5rem;
             margin-bottom: 30px;
-            opacity: 0.9;
+            color: #333333;
         }
 
         .pose-cards {
@@ -141,42 +151,47 @@
         }
 
         .pose-card {
-            background: rgba(255,255,255,0.1);
+            background: #f8f9fa;
             border-radius: 12px;
             padding: 20px;
             text-align: center;
-            border: 1px solid rgba(255,255,255,0.2);
+            border: 2px solid #e0e0e0;
         }
 
         .pose-icon {
             width: 80px;
             height: 80px;
             margin-bottom: 15px;
-            opacity: 0.9;
         }
 
         .pose-card h5 {
             font-size: 1.2rem;
             margin-bottom: 10px;
             font-weight: 600;
+            color: #333333;
         }
 
         .pose-card p {
             font-size: 0.9rem;
-            opacity: 0.7;
+            color: #666666;
             line-height: 1.4;
         }
 
         .tech-info {
             margin-top: 40px;
             font-size: 0.9rem;
-            opacity: 0.6;
+            color: #888888;
             line-height: 1.4;
         }
 
         @media (max-width: 768px) {
             .apps-grid {
                 grid-template-columns: 1fr;
+            }
+
+            .single-app-container .app-card {
+                max-width: 100%;
+                margin: 0 10px;
             }
 
             .pose-cards {
@@ -196,45 +211,27 @@
 <body>
     <div class="hero-section">
         <div class="hero-content">
-            <h1>EXPOLAT</h1>
-            <div class="subtitle">
-                Interactive pose detection experiences with AI-powered overlays
-            </div>
+            <h1>Between Verses</h1>
 
-            <div class="apps-grid">
-                <a href="app.html" class="app-card">
-                    <span class="app-icon">🏗️</span>
-                    <div class="app-title">Between Verses</div>
-                    <ul class="app-features">
-                        <li>Three-layer rendering system</li>
-                        <li>Building texture mapping</li>
-                        <li>Nature overlay system</li>
-                        <li>MediaPipe AI integration</li>
-                    </ul>
+
+            <div class="single-app-container">
+                <a href="app.html" class="app-card" style="text-decoration: none;">
+                    <span class="app-icon">✨</span>
+                    <div class="app-title">Enter Experience</div>
+
                 </a>
-
-                <div class="app-card" onclick="startPoseGame()">
-                    <span class="app-icon">🎮</span>
-                    <div class="app-title">Pose Detection Game</div>
-                    <ul class="app-features">
-                        <li>Multi-person support</li>
-                        <li>Shoulder-anchored stickers</li>
-                        <li>Real-time pose tracking</li>
-                        <li>Interactive controls</li>
-                    </ul>
-                </div>
             </div>
 
             <div class="pose-instructions">
                 <h3>Supported Poses</h3>
                 <div class="pose-cards">
                     <div class="pose-card">
-                        <img src="prime.svg" alt="Prime Tower pose" class="pose-icon">
+                        <img src="images/prime.svg" alt="Prime Tower pose" class="pose-icon">
                         <h5>Prime Tower</h5>
                         <p>Both hands on top of head, close together</p>
                     </div>
                     <div class="pose-card">
-                        <img src="jesus.svg" alt="Jesus pose" class="pose-icon">
+                        <div class="pose-icon" style="background: url('images/cristoredentor.png') center/contain no-repeat; width: 80px; height: 80px; margin: 0 auto 15px; opacity: 0.9;"></div>
                         <h5>Cristo Redentor</h5>
                         <p>Arms extended horizontally to the sides</p>
                     </div>
@@ -247,50 +244,6 @@
         </div>
     </div>
 
-    <!-- Hidden game container -->
-    <div id="game-container" style="display: none;">
-        <!-- Wrapper for video-related content (interactive game) -->
-        <div id="video-wrapper" class="d-flex justify-content-center align-items-center"></div>
-
-        <!-- Control buttons -->
-        <div class="controls-container mt-3 d-flex justify-content-center gap-3">
-            <button id="fullscreen-btn" class="btn btn-primary">Fullscreen</button>
-            <button id="video-toggle-btn" class="btn btn-primary">Hide Video</button>
-            <button id="generate-images-btn" class="btn btn-primary">Hide Tracking</button>
-            <button id="back-btn" class="btn btn-secondary" onclick="backToMenu()">Back to Menu</button>
-        </div>
-    </div>
-
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-        function startPoseGame() {
-            // Hide hero section
-            document.querySelector('.hero-section').style.display = 'none';
-
-            // Show game container
-            document.getElementById('game-container').style.display = 'block';
-            document.body.style.background = '#333';
-
-            // Load the game script dynamically
-            const script = document.createElement('script');
-            script.src = 'script.js';
-            document.head.appendChild(script);
-        }
-
-        function backToMenu() {
-            // Show hero section
-            document.querySelector('.hero-section').style.display = 'flex';
-
-            // Hide game container
-            document.getElementById('game-container').style.display = 'none';
-            document.body.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
-
-            // Remove p5 canvas if it exists
-            const canvas = document.querySelector('canvas');
-            if (canvas) {
-                canvas.remove();
-            }
-        }
-    </script>
 </body>
 </html>
