@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EXPOLAT - Monument Mapper</title>
+    <title>EXPOLAT - Interactive Pose Detection</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         * {
             margin: 0;
@@ -15,25 +16,30 @@
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
             color: white;
         }
 
-        .container {
+        .hero-section {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             text-align: center;
-            max-width: 600px;
-            padding: 40px;
+            padding: 40px 20px;
+        }
+
+        .hero-content {
+            max-width: 900px;
             background: rgba(0,0,0,0.3);
             backdrop-filter: blur(20px);
             border-radius: 20px;
+            padding: 60px 40px;
             box-shadow: 0 20px 60px rgba(0,0,0,0.4);
             border: 1px solid rgba(255,255,255,0.2);
         }
 
         h1 {
-            font-size: 3rem;
+            font-size: 4rem;
             font-weight: 700;
             text-transform: uppercase;
             letter-spacing: 3px;
@@ -42,87 +48,255 @@
         }
 
         .subtitle {
-            font-size: 1.2rem;
+            font-size: 1.3rem;
             opacity: 0.9;
-            margin-bottom: 40px;
+            margin-bottom: 50px;
             line-height: 1.6;
         }
 
-        .features {
+        .apps-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
             margin-bottom: 40px;
         }
 
-        .feature {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin: 15px 0;
-            font-size: 1.1rem;
-            opacity: 0.8;
-        }
-
-        .feature-icon {
-            font-size: 1.5rem;
-            margin-right: 15px;
-        }
-
-        .start-button {
-            display: inline-block;
-            padding: 15px 40px;
-            font-size: 1.2rem;
-            font-weight: 600;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            text-decoration: none;
-            border-radius: 50px;
+        .app-card {
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 30px;
+            border: 1px solid rgba(255,255,255,0.2);
             transition: all 0.3s ease;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            text-decoration: none;
+            color: white;
+            display: block;
         }
 
-        .start-button:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 15px 40px rgba(0,0,0,0.4);
+        .app-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.3);
+            background: rgba(255,255,255,0.15);
+            color: white;
+        }
+
+        .app-icon {
+            font-size: 3rem;
+            margin-bottom: 20px;
+            display: block;
+        }
+
+        .app-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 15px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .app-description {
+            font-size: 1rem;
+            opacity: 0.8;
+            line-height: 1.5;
+            margin-bottom: 20px;
+        }
+
+        .app-features {
+            list-style: none;
+            text-align: left;
+        }
+
+        .app-features li {
+            font-size: 0.9rem;
+            opacity: 0.7;
+            margin-bottom: 8px;
+            padding-left: 20px;
+            position: relative;
+        }
+
+        .app-features li:before {
+            content: "•";
+            position: absolute;
+            left: 0;
+            color: #667eea;
+            font-weight: bold;
+        }
+
+        .pose-instructions {
+            margin-top: 50px;
+        }
+
+        .pose-instructions h3 {
+            font-size: 1.5rem;
+            margin-bottom: 30px;
+            opacity: 0.9;
+        }
+
+        .pose-cards {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .pose-card {
+            background: rgba(255,255,255,0.1);
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .pose-icon {
+            width: 80px;
+            height: 80px;
+            margin-bottom: 15px;
+            opacity: 0.9;
+        }
+
+        .pose-card h5 {
+            font-size: 1.2rem;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+
+        .pose-card p {
+            font-size: 0.9rem;
+            opacity: 0.7;
+            line-height: 1.4;
         }
 
         .tech-info {
-            margin-top: 30px;
+            margin-top: 40px;
             font-size: 0.9rem;
             opacity: 0.6;
             line-height: 1.4;
         }
+
+        @media (max-width: 768px) {
+            .apps-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .pose-cards {
+                grid-template-columns: 1fr;
+            }
+
+            h1 {
+                font-size: 2.5rem;
+            }
+
+            .hero-content {
+                padding: 40px 20px;
+            }
+        }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>EXPOLAT</h1>
-        <div class="subtitle">
-            Transform into iconic monuments with AI pose detection
-        </div>
-
-        <div class="features">
-            <div class="feature">
-                <span class="feature-icon">🎯</span>
-                <span>Real-time pose detection</span>
+    <div class="hero-section">
+        <div class="hero-content">
+            <h1>EXPOLAT</h1>
+            <div class="subtitle">
+                Interactive pose detection experiences with AI-powered overlays
             </div>
-            <div class="feature">
-                <span class="feature-icon">🏗️</span>
-                <span>Monument texture mapping</span>
-            </div>
-            <div class="feature">
-                <span class="feature-icon">🌿</span>
-                <span>Nature overlay system</span>
-            </div>
-        </div>
 
-        <a href="app.html" class="start-button">
-            Start Experience
-        </a>
+            <div class="apps-grid">
+                <a href="app.html" class="app-card">
+                    <span class="app-icon">🏗️</span>
+                    <div class="app-title">Monument Mapper</div>
+                    <div class="app-description">
+                        Transform into iconic monuments with real-time pose detection and texture mapping
+                    </div>
+                    <ul class="app-features">
+                        <li>Three-layer rendering system</li>
+                        <li>Building texture mapping</li>
+                        <li>Nature overlay system</li>
+                        <li>MediaPipe AI integration</li>
+                    </ul>
+                </a>
 
-        <div class="tech-info">
-            Powered by MediaPipe AI • Three-layer rendering system
+                <div class="app-card" onclick="startPoseGame()">
+                    <span class="app-icon">🎮</span>
+                    <div class="app-title">Pose Detection Game</div>
+                    <div class="app-description">
+                        Multi-person interactive game with shoulder-anchored sticker overlays
+                    </div>
+                    <ul class="app-features">
+                        <li>Multi-person support</li>
+                        <li>Shoulder-anchored stickers</li>
+                        <li>Real-time pose tracking</li>
+                        <li>Interactive controls</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="pose-instructions">
+                <h3>Supported Poses</h3>
+                <div class="pose-cards">
+                    <div class="pose-card">
+                        <img src="prime.svg" alt="Prime Tower pose" class="pose-icon">
+                        <h5>Prime Tower</h5>
+                        <p>Both hands on top of head, close together</p>
+                    </div>
+                    <div class="pose-card">
+                        <img src="jesus.svg" alt="Jesus pose" class="pose-icon">
+                        <h5>Cristo Redentor</h5>
+                        <p>Arms extended horizontally to the sides</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tech-info">
+                Powered by MediaPipe AI • ml5.js • p5.js • Three-layer rendering system
+            </div>
         </div>
     </div>
+
+    <!-- Hidden game container -->
+    <div id="game-container" style="display: none;">
+        <!-- Wrapper for video-related content (interactive game) -->
+        <div id="video-wrapper" class="d-flex justify-content-center align-items-center"></div>
+
+        <!-- Control buttons -->
+        <div class="controls-container mt-3 d-flex justify-content-center gap-3">
+            <button id="fullscreen-btn" class="btn btn-primary">Fullscreen</button>
+            <button id="video-toggle-btn" class="btn btn-primary">Hide Video</button>
+            <button id="generate-images-btn" class="btn btn-primary">Hide Tracking</button>
+            <button id="back-btn" class="btn btn-secondary" onclick="backToMenu()">Back to Menu</button>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function startPoseGame() {
+            // Hide hero section
+            document.querySelector('.hero-section').style.display = 'none';
+
+            // Show game container
+            document.getElementById('game-container').style.display = 'block';
+            document.body.style.background = '#333';
+
+            // Load the game script dynamically
+            const script = document.createElement('script');
+            script.src = 'script.js';
+            document.head.appendChild(script);
+        }
+
+        function backToMenu() {
+            // Show hero section
+            document.querySelector('.hero-section').style.display = 'flex';
+
+            // Hide game container
+            document.getElementById('game-container').style.display = 'none';
+            document.body.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+
+            // Remove p5 canvas if it exists
+            const canvas = document.querySelector('canvas');
+            if (canvas) {
+                canvas.remove();
+            }
+        }
+    </script>
 </body>
 </html>
