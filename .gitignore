@@ -17,6 +17,9 @@ pids
 *.seed
 *.pid.lock
 
+# Personal Claude Settings
+CLAUDE.md
+
 # Coverage directory used by tools like istanbul
 coverage/
 *.lcov
@@ -82,6 +85,9 @@ generated/
 *.jpeg
 *.gif
 *.webp
+
+# Copyrighted Images
+images/copyrighted/*
 
 # OS generated files
 .DS_Store

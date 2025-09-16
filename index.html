@@ -1,68 +1,128 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <!-- Specifies the document type and language for the browser and accessibility tools -->
-    <meta charset="UTF-8"> <!-- Sets the character encoding to UTF-8 for global compatibility -->
-    <meta name="viewport" content="width=device-width, initial-scale=1.0"> <!-- Ensures responsiveness on all devices -->
-    <title>EXPOLAT</title> <!-- Defines the title displayed on the browser tab -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EXPOLAT - Monument Mapper</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
-    <!-- Adds a favicon (icon in the browser tab) -->
-    <link rel="icon" href="favicon.png">
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+        }
 
-    <!-- Links to Bootstrap CSS for pre-built responsive design and styling -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+        .container {
+            text-align: center;
+            max-width: 600px;
+            padding: 40px;
+            background: rgba(0,0,0,0.3);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+            border: 1px solid rgba(255,255,255,0.2);
+        }
 
-    <!-- Links to Google Fonts for custom typography -->
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@100;200;300;400;500;600;700;800;900&family=Inter:wght@100;200;300;400;500;600;700;800;900&subset=latin&display=swap" rel="stylesheet">
+        h1 {
+            font-size: 3rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            margin-bottom: 20px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
 
-    <!-- Links to the custom CSS file for additional styles -->
-    <link href="styles.css" rel="stylesheet">
+        .subtitle {
+            font-size: 1.2rem;
+            opacity: 0.9;
+            margin-bottom: 40px;
+            line-height: 1.6;
+        }
 
-    <!-- Includes p5.js for creative coding and interactive visualizations -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.6.0/p5.js"></script>
+        .features {
+            margin-bottom: 40px;
+        }
 
-    <!-- Includes ml5.js for using machine learning in creative projects -->
-    <script src="https://unpkg.com/ml5@1/dist/ml5.js"></script>
+        .feature {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 15px 0;
+            font-size: 1.1rem;
+            opacity: 0.8;
+        }
+
+        .feature-icon {
+            font-size: 1.5rem;
+            margin-right: 15px;
+        }
+
+        .start-button {
+            display: inline-block;
+            padding: 15px 40px;
+            font-size: 1.2rem;
+            font-weight: 600;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-decoration: none;
+            border-radius: 50px;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+
+        .start-button:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.4);
+        }
+
+        .tech-info {
+            margin-top: 30px;
+            font-size: 0.9rem;
+            opacity: 0.6;
+            line-height: 1.4;
+        }
+    </style>
 </head>
 <body>
-    <section id="video-section" class="d-flex justify-content-center align-items-center my-5">
-        <!-- Main interactive section with a title and description -->
-        <div class="container">
-            <h1 class="text-center">Expolat Prototype</h1> <!-- Game title -->
+    <div class="container">
+        <h1>EXPOLAT</h1>
+        <div class="subtitle">
+            Transform into iconic monuments with AI pose detection
+        </div>
 
-            <!-- Wrapper for video-related content (likely interactive) -->
-            <div id="video-wrapper" class="d-flex justify-content-center align-items-center"></div>
-
-               <!-- Control buttons -->
-               <div class="controls-container mt-3 d-flex justify-content-center gap-3">
-                   <button id="fullscreen-btn" class="btn btn-1">Fullscreen</button>
-                   <button id="video-toggle-btn" class="btn btn-1">Hide Video</button>
-                   <button id="generate-images-btn" class="btn btn-1">Generate Images</button>
-               </div>
-
-            <!-- Pose Instructions -->
-            <div class="pose-instructions mt-4">
-                <div class="row justify-content-center">
-                    <div class="col-md-4 text-center mb-3">
-                        <div class="pose-card">
-                            <img src="mountain.svg" alt="Mountain pose" class="pose-icon">
-                            <h5>Mountain</h5>
-                            <p class="small">Both hands on top of head, close together</p>
-                        </div>
-                    </div>
-                    <div class="col-md-4 text-center mb-3">
-                        <div class="pose-card">
-                            <img src="jesus.svg" alt="Jesus pose" class="pose-icon">
-                            <h5>Jesus</h5>
-                            <p class="small">Arms extended horizontally to the sides</p>
-                        </div>
-                    </div>
-                </div>
+        <div class="features">
+            <div class="feature">
+                <span class="feature-icon">🎯</span>
+                <span>Real-time pose detection</span>
+            </div>
+            <div class="feature">
+                <span class="feature-icon">🏗️</span>
+                <span>Monument texture mapping</span>
+            </div>
+            <div class="feature">
+                <span class="feature-icon">🌿</span>
+                <span>Nature overlay system</span>
             </div>
         </div>
-    </section>
 
-    <!-- Links to a custom JavaScript file for functionality -->
-    <script src="script.js"></script>
+        <a href="app.html" class="start-button">
+            Start Experience
+        </a>
+
+        <div class="tech-info">
+            Powered by MediaPipe AI • Three-layer rendering system
+        </div>
+    </div>
 </body>
 </html>
