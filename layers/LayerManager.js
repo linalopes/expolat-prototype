@@ -35,7 +35,7 @@ class LayerManager {
         this.updateRenderOrder();
 
         // Initialize layer with appropriate canvas
-        if (layer.name === 'overlay') {
+        if (layer.name === 'overlay' || layer.name === 'nature') {
             layer.init(this.overlayCanvas, this.overlayCtx);
         } else {
             layer.init(this.mainCanvas, this.mainCtx);

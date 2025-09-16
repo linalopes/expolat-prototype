@@ -78,7 +78,8 @@ class NatureLayer extends BaseLayer {
     }
 
     async renderBottomThird(region, overlay, timestamp) {
-        if (!overlay || !overlay.nature) {
+        const imageName = overlay.image || overlay.nature;
+        if (!overlay || !imageName) {
             return false;
         }
 
@@ -89,7 +90,7 @@ class NatureLayer extends BaseLayer {
         const height = region.height * this.canvas.height;
 
         // Load overlay image
-        const overlayImage = await this.loadOverlayImage(overlay.nature);
+        const overlayImage = await this.loadOverlayImage(imageName);
 
         if (!overlayImage) {
             // Fallback: render solid color overlay
@@ -112,7 +113,7 @@ class NatureLayer extends BaseLayer {
 
         this.ctx.restore();
 
-        console.log(`✓ Nature overlay rendered: ${overlay.nature} at region ${region.name}`);
+        console.log(`✓ Nature overlay rendered: ${imageName} at region ${region.name}`);
         return true;
     }
 
@@ -124,14 +125,17 @@ class NatureLayer extends BaseLayer {
 
         if (overlay.fallbackColor) {
             fallbackColor = overlay.fallbackColor;
-        } else if (overlay.nature) {
-            // Generate color based on nature type
-            if (overlay.nature.includes('mountain') || overlay.nature.includes('alpine')) {
-                fallbackColor = 'rgba(135, 206, 235, 1.0)'; // Sky blue
-            } else if (overlay.nature.includes('forest') || overlay.nature.includes('amazon')) {
-                fallbackColor = 'rgba(34, 139, 34, 1.0)'; // Forest green
-            } else if (overlay.nature.includes('water') || overlay.nature.includes('iguazu')) {
-                fallbackColor = 'rgba(0, 150, 200, 1.0)'; // Water blue
+        } else {
+            const imageName = overlay.image || overlay.nature;
+            if (imageName) {
+                // Generate color based on nature type
+                if (imageName.includes('mountain') || imageName.includes('alpine') || imageName.includes('aletsch')) {
+                    fallbackColor = 'rgba(135, 206, 235, 1.0)'; // Sky blue
+                } else if (imageName.includes('forest') || imageName.includes('amazon')) {
+                    fallbackColor = 'rgba(34, 139, 34, 1.0)'; // Forest green
+                } else if (imageName.includes('water') || imageName.includes('iguazu')) {
+                    fallbackColor = 'rgba(0, 150, 200, 1.0)'; // Water blue
+                }
             }
         }
 
@@ -169,8 +173,11 @@ class NatureLayer extends BaseLayer {
     }
 
     getOverlayKey(overlay) {
-        if (!overlay) return 'none';
-        return `${overlay.nature || 'none'}_${overlay.opacity || 1.0}_${overlay.blendMode || 'normal'}`;
+        if (!overlay) {
+            return 'none';
+        }
+        const key = `${overlay.image || overlay.nature || 'none'}_${overlay.opacity || 1.0}_${overlay.blendMode || 'normal'}`;
+        return key;
     }
 
     shouldRender(inputData, timestamp) {
@@ -192,6 +199,7 @@ class NatureLayer extends BaseLayer {
     }
 
     setOverlay(overlay) {
+        console.log('NatureLayer.setOverlay called with:', overlay);
         this.config.currentOverlay = overlay;
         this.lastRenderedOverlay = null; // Force re-render
         this.invalidate();

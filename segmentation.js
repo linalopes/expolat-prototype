@@ -22,7 +22,7 @@ class PersonSegmentation {
 
         this.settings = {
             backgroundMode: 'remove',
-            backgroundColor: '#1a1a2e',
+            backgroundColor: '#ffffff',
             personEffect: 'texture',
             buildingOverlayEnabled: true,
             confidenceThreshold: 0.7,
@@ -70,9 +70,11 @@ class PersonSegmentation {
 
             // Set initial overlay
             const natureLayer = this.layerManager.getLayer('nature');
-        if (natureLayer) {
-            natureLayer.setOverlay(this.currentOverlay);
-        }
+            if (natureLayer) {
+                console.log('Setting initial nature overlay:', this.currentOverlay);
+                natureLayer.setOverlay(this.currentOverlay);
+                console.log('Nature layer enabled state:', natureLayer.config.enabled);
+            }
         } catch (error) {
             console.error('Initialization error:', error);
             document.getElementById('status').innerHTML = '<span style="color: #ff6b6b;">Error: ' + error.message + '</span>';
@@ -189,25 +191,15 @@ class PersonSegmentation {
 
     onSegmentationResults(results) {
         this.segmentationResults = results;
-        this.renderFrame().then(() => {
-            // Force overlay to render after frame is complete
-            requestAnimationFrame(() => {
-                this.renderTopLayerOverlay();
-            });
-        }).catch((error) => {
+        this.renderFrame().catch((error) => {
             console.warn('Render frame error:', error);
-            // Still render overlay even if main frame fails
-            this.renderTopLayerOverlay();
         });
     }
 
     onPoseResults(results) {
         this.poses = results.poseLandmarks ? [results] : [];
         this.detectPose();
-        // Always try to render overlay to prevent disappearing
-        requestAnimationFrame(() => {
-            this.renderTopLayerOverlay();
-        });
+        // Nature layer is handled by LayerManager now
     }
 
     async renderFrame() {
@@ -413,6 +405,9 @@ class PersonSegmentation {
         const natureLayer = this.layerManager.getLayer('nature');
         if (natureLayer) {
             natureLayer.setOverlay(this.currentOverlay);
+            // Force immediate render
+            natureLayer.invalidate();
+            console.log('Nature layer invalidated, forcing render...');
         }
         console.log(`Current overlay set to:`, this.currentOverlay);
 
@@ -845,11 +840,12 @@ class PersonSegmentation {
     startProcessing() {
         const processFrame = async () => {
             if (this.video.readyState >= 2) {
-                // Send frame to both segmentation and pose detection
+                // Send frame to segmentation
                 if (this.segmenter) {
                     await this.segmenter.send({ image: this.video });
                 }
-                if (this.poseDetector) {
+                // Only send to pose detector if detection is enabled
+                if (this.poseDetector && this.poseDetectionEnabled) {
                     await this.poseDetector.send({ image: this.video });
                 }
             }
@@ -859,93 +855,114 @@ class PersonSegmentation {
     }
 
     setupControls() {
-        // Background color picker
-        const bgColorPicker = document.getElementById('bgColorPicker');
-        if (bgColorPicker) {
-            // Generate a random color or use from settings
-            const randomColor = '#' + Math.floor(Math.random()*16777215).toString(16).padStart(6, '0');
-            bgColorPicker.value = this.settings.backgroundColor || randomColor;
-            this.settings.backgroundColor = bgColorPicker.value;
+        // Set background to white by default
+        this.settings.backgroundColor = '#ffffff';
+        this.backgroundLayer.setBackgroundColor(this.settings.backgroundColor);
 
-            // Update background layer with initial color
-            this.backgroundLayer.setBackgroundColor(this.settings.backgroundColor);
+        // Building overlay checkbox
+        const buildingOverlayCheckbox = document.getElementById('buildingOverlay');
+        if (buildingOverlayCheckbox) {
+            // Set initial state
+            buildingOverlayCheckbox.checked = this.settings.buildingOverlayEnabled;
 
-            bgColorPicker.addEventListener('input', (e) => {
-                this.settings.backgroundColor = e.target.value;
-                this.backgroundLayer.setBackgroundColor(this.settings.backgroundColor);
-            });
-        }
-
-        // Building overlay toggle
-        const buildingOverlayBtn = document.getElementById('buildingOverlay');
-        if (buildingOverlayBtn) {
-            buildingOverlayBtn.addEventListener('click', () => {
-                this.settings.buildingOverlayEnabled = !this.settings.buildingOverlayEnabled;
+            buildingOverlayCheckbox.addEventListener('change', () => {
+                this.settings.buildingOverlayEnabled = buildingOverlayCheckbox.checked;
 
                 if (this.settings.buildingOverlayEnabled) {
-                    buildingOverlayBtn.textContent = 'Building Overlay ON';
-                    buildingOverlayBtn.classList.add('active');
-
                     // Enable texture on building layer
                     this.buildingLayer.updateConfig({ textureType: 'image' });
                 } else {
-                    buildingOverlayBtn.textContent = 'Building Overlay OFF';
-                    buildingOverlayBtn.classList.remove('active');
-
                     // Disable texture on building layer
                     this.buildingLayer.updateConfig({ textureType: 'none' });
                 }
+                console.log('Building overlay enabled:', this.settings.buildingOverlayEnabled);
             });
         }
 
 
         // Settings are now loaded from config, no sliders needed
 
-        // Accordion functionality
-        const accordionHeader = document.getElementById('poseTestHeader');
-        const accordionContent = document.getElementById('poseTestContent');
+        // Pose buttons are now directly in the Body Tracking section
 
-        accordionHeader.addEventListener('click', () => {
-            const isActive = accordionHeader.classList.contains('active');
-
-            if (isActive) {
-                accordionHeader.classList.remove('active');
-                accordionContent.classList.remove('active');
-            } else {
-                accordionHeader.classList.add('active');
-                accordionContent.classList.add('active');
-            }
-        });
-
-        // Pose detection toggle
+        // Pose detection button
         const poseDetectionBtn = document.getElementById('poseDetection');
-        poseDetectionBtn.addEventListener('click', () => {
-            this.poseDetectionEnabled = !this.poseDetectionEnabled;
-
+        if (poseDetectionBtn) {
+            // Set initial state
             if (this.poseDetectionEnabled) {
-                poseDetectionBtn.textContent = 'Auto Detection ON';
                 poseDetectionBtn.classList.add('active');
+                poseDetectionBtn.innerHTML = '<span class="tracking-status">●</span> Auto Tracking ON';
             } else {
-                poseDetectionBtn.textContent = 'Auto Detection OFF';
                 poseDetectionBtn.classList.remove('active');
+                poseDetectionBtn.innerHTML = '<span class="tracking-status">●</span> Auto Tracking OFF';
             }
-        });
 
-        // Nature overlay toggle
-        const natureOverlayBtn = document.getElementById('natureOverlay');
-        natureOverlayBtn.addEventListener('click', () => {
-            const natureLayer = this.layerManager.getLayer('nature');
-            const isEnabled = natureLayer ? natureLayer.config.enabled : false;
-            this.layerManager.setLayerEnabled('nature', !isEnabled);
+            poseDetectionBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
 
-            if (!isEnabled) {
-                natureOverlayBtn.textContent = 'Nature Layer ON';
-                natureOverlayBtn.classList.add('active');
-            } else {
-                natureOverlayBtn.textContent = 'Nature Layer OFF';
-                natureOverlayBtn.classList.remove('active');
-            }
-        });
+                // Toggle the state
+                this.poseDetectionEnabled = !this.poseDetectionEnabled;
+                console.log('Button clicked! Pose detection enabled:', this.poseDetectionEnabled);
+
+                if (this.poseDetectionEnabled) {
+                    poseDetectionBtn.classList.add('active');
+                    poseDetectionBtn.innerHTML = '<span class="tracking-status">●</span> Auto Tracking ON';
+                    // Clear any simulated pose when re-enabling
+                    this.isSimulatingPose = false;
+                    this.currentSimulatedPose = null;
+                    console.log('Auto tracking re-enabled, clearing simulated pose');
+                } else {
+                    poseDetectionBtn.classList.remove('active');
+                    poseDetectionBtn.innerHTML = '<span class="tracking-status">●</span> Auto Tracking OFF';
+                    // Clear poses and stop simulation when manually disabling
+                    this.isSimulatingPose = false;
+                    this.currentSimulatedPose = null;
+                    this.poses = [];  // Clear detected poses
+                    this.currentPose = 'neutral';  // Reset to neutral pose
+                    console.log('Auto tracking disabled, poses cleared');
+                }
+            });
+        }
+
+        // Nature overlay checkbox
+        const natureOverlayCheckbox = document.getElementById('natureOverlay');
+        if (natureOverlayCheckbox) {
+            // Set initial state
+            natureOverlayCheckbox.checked = true;
+
+            natureOverlayCheckbox.addEventListener('change', () => {
+                const isEnabled = natureOverlayCheckbox.checked;
+                console.log('Nature layer enabled:', isEnabled);
+
+                // Force immediate re-render of nature layer
+                const natureLayer = this.layerManager.getLayer('nature');
+                if (natureLayer) {
+                    if (isEnabled) {
+                        // Ensure we have a valid overlay
+                        if (!this.currentOverlay || !this.currentOverlay.image) {
+                            this.currentOverlay = {
+                                image: 'iguazu.png',
+                                opacity: 1.0,
+                                blendMode: 'normal'
+                            };
+                        }
+                        console.log('Restoring nature overlay:', this.currentOverlay);
+                        natureLayer.setOverlay(this.currentOverlay);
+                        natureLayer.setEnabled(true);
+                        // Force immediate render
+                        natureLayer.invalidate();
+                        this.layerManager.render({}, performance.now());
+                    } else {
+                        natureLayer.setEnabled(false);
+                        // Clear the overlay canvas
+                        if (this.overlayCanvas) {
+                            const overlayCtx = this.overlayCanvas.getContext('2d');
+                            overlayCtx.clearRect(0, 0, this.overlayCanvas.width, this.overlayCanvas.height);
+                        }
+                    }
+                }
+            });
+        }
 
         // Pose test buttons
         const poseButtons = document.querySelectorAll('.pose-test-button');
@@ -1012,18 +1029,18 @@ class PersonSegmentation {
         this.currentSimulatedPose = poseType;
         this.isSimulatingPose = true;
 
+        // Disable automatic tracking when pose is manually selected
+        this.poseDetectionEnabled = false;
+        const poseDetectionBtn = document.getElementById('poseDetection');
+        if (poseDetectionBtn) {
+            poseDetectionBtn.classList.remove('active');
+            poseDetectionBtn.innerHTML = '<span class="tracking-status">●</span> Auto Tracking OFF';
+        }
+
         // Trigger texture mapping for this pose
         this.applyPoseTextures(poseType);
 
-        console.log(`Simulating pose: ${poseType}`);
-
-        // Only auto-disable simulation if pose detection is enabled
-        if (this.poseDetectionEnabled) {
-            setTimeout(() => {
-                this.isSimulatingPose = false;
-                this.currentSimulatedPose = null;
-            }, 3000);
-        }
+        console.log(`Simulating pose: ${poseType} - Auto tracking disabled`);
     }
 
     applyPoseTextures(poseType) {
@@ -1031,10 +1048,12 @@ class PersonSegmentation {
         this.currentPose = poseType;
         this.updateTextureForPose(poseType);
 
-        // Immediately render the overlay to make it visible
-        requestAnimationFrame(() => {
-            this.renderTopLayerOverlay();
-        });
+        // Immediately update nature layer
+        const natureLayer = this.layerManager.getLayer('nature');
+        if (natureLayer && this.currentOverlay) {
+            natureLayer.setOverlay(this.currentOverlay);
+            natureLayer.invalidate();
+        }
     }
 
 

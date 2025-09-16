@@ -33,15 +33,15 @@ class BuildingLayer extends BaseLayer {
             return true; // Nothing to render, but consider it successful
         }
 
-        console.log(`PersonLayer rendering: textureType=${this.config.textureType}, currentTexture=${this.config.currentTexture}, poses=${poses?.length || 0}`);
+        //console.log(`PersonLayer rendering: textureType=${this.config.textureType}, currentTexture=${this.config.currentTexture}, poses=${poses?.length || 0}`);
 
         switch (this.config.textureType) {
             case 'image':
-                console.log('Calling applyImageTexture');
+                //console.log('Calling applyImageTexture');
                 await this.applyImageTexture(pixels, mask);
                 break;
             case 'color':
-                console.log('Calling applyColorOverlay');
+                //console.log('Calling applyColorOverlay');
                 this.applyColorOverlay(pixels, mask, timestamp);
                 break;
             default:
