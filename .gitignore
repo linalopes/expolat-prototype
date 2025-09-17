@@ -79,12 +79,12 @@ logs
 *.log
 
 # AI Generated Images (optional - you might want to keep these)
-generated/
-*.png
-*.jpg
-*.jpeg
-*.gif
-*.webp
+generated/*.png
+generated/*.jpg
+generated/*.jpeg
+generated/*.gif
+generated/*.webp
+generated/*.webp
 
 # Copyrighted Images
 images/copyrighted/*

@@ -48,3 +48,51 @@ Canvas Overlay Rendering Issues
   - Async timing issues
   - Wrong source data being used
   - Z-index/positioning problems
+
+PixiJS 8 Wireframe/Graphics Rendering Issues
+
+  Root Cause Analysis:
+  Wireframe graphics weren't visible despite being created
+  and added to stage due to multiple issues:
+
+  1. Wrong API Version
+  - Problem: Using PixiJS v7 syntax with v8 library
+  - Old v7: graphics.lineStyle(4, 0x00ff00); graphics.drawRect(x, y, w, h);
+  - New v8: graphics.rect(x, y, w, h).stroke({ color: 0x00ff00, width: 4 });
+  - Fix: Updated all graphics drawing to use v8 chainable API
+
+  2. Missing Render Loop
+  - Problem: PixiJS 8 doesn't auto-render without ticker
+  - Symptom: Graphics created but never displayed
+  - Fix: Added app.ticker.add(() => {}) to enable continuous rendering
+
+  3. Mesh Vertex Scale Issue
+  - Problem: Mesh vertices were 1x1 pixel normalized coords
+  - Raw vertices: [0, 0, 1, 0, 1, 1, 0, 1] instead of actual dimensions
+  - Fix: Scale vertices by meshConfig.width/height when drawing wireframe
+
+  4. Graphics Visibility Settings
+  - Problem: Graphics might be culled or hidden
+  - Fix: Set explicit properties:
+    graphics.visible = true;
+    graphics.renderable = true;
+    graphics.cullable = false; // Prevent culling
+    graphics.alpha = 1.0;
+
+  5. Continuous Clearing Issue
+  - Problem: drawWireframesQuiet() called every frame with clear()
+  - Symptom: Wireframe flickers and disappears immediately
+  - Fix: Throttle updates and ensure persistence
+
+  Debugging Steps That Worked:
+  1. Add test rectangles with bright colors to verify canvas visibility
+  2. Check canvas has red tint (background color) to confirm it exists
+  3. Log mesh positions to verify they're on-screen
+  4. Check stage children count and graphics parent
+  5. Use Chrome DevTools to verify window.personSegmentation.pixiMeshLayer exists
+
+  Key PixiJS 8 API Changes:
+  - Graphics: Use rect().fill() and rect().stroke() instead of beginFill/drawRect
+  - Lines: Use moveTo().lineTo().stroke() instead of lineStyle/moveTo/lineTo
+  - Must add ticker for rendering: app.ticker.add(() => {})
+  - Container structure changes - sprites/meshes can't have children

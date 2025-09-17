@@ -41,10 +41,10 @@
 
         .sidebar-title {
             font-size: 1.3rem;
-            font-weight: 700;
+            font-weight: 900;
             text-transform: uppercase;
             letter-spacing: 2px;
-            margin-bottom: 10px;
+            margin-top: 5px;
             color: #333333;
         }
 
@@ -97,6 +97,21 @@
         #outputCanvas {
             width: 100%;
             display: block;
+        }
+
+        #pixiContainer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 20;
+        }
+
+        #pixiContainer canvas {
+            width: 100% !important;
+            height: 100% !important;
         }
 
         #overlayCanvas {
@@ -639,6 +654,44 @@
             0%, 100% { opacity: 1; }
             50% { opacity: 0.5; }
         }
+
+        .debug-info {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            padding: 12px;
+        }
+
+        .debug-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+            font-size: 0.85rem;
+        }
+
+        .debug-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .debug-label {
+            font-weight: 600;
+            color: #495057;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .debug-value {
+            background: #ffffff;
+            padding: 4px 8px;
+            border-radius: 4px;
+            border: 1px solid #e9ecef;
+            font-family: monospace;
+            font-size: 0.8rem;
+            color: #007bff;
+            min-width: 60px;
+            text-align: center;
+        }
     </style>
 </head>
 <body>
@@ -652,7 +705,7 @@
 
             <div class="control-section">
                 <div class="section-title">Layers</div>
-                <div class="control-group">
+                <div class="control-section">
                     <label class="checkbox-group">
                         <input type="checkbox" id="buildingOverlay" checked>
                         <span class="checkbox-label">Building Overlay</span>
@@ -662,44 +715,45 @@
                         <span class="checkbox-label">Nature Overlay</span>
                     </label>
                     <label class="checkbox-group">
+                        <input type="checkbox" id="pixiMeshes" checked>
+                        <span class="checkbox-label">Digital Clothing</span>
+                    </label>
+                </div>
+
+                <div class="control-section">
+                    <div class="section-title">Tracking Visualization</div>
+                    <label class="checkbox-group">
+                        <input type="checkbox" id="poseSkeleton" checked>
+                        <span class="checkbox-label">Pose Skeleton</span>
+                    </label>
+                    <label class="checkbox-group">
+                        <input type="checkbox" id="poseLandmarks" checked>
+                        <span class="checkbox-label">Pose Landmarks</span>
+                    </label>
+                    <label class="checkbox-group">
+                        <input type="checkbox" id="meshWireframe">
+                        <span class="checkbox-label">Mesh Wireframe</span>
+                    </label>
+                    <label class="checkbox-group">
                         <input type="checkbox" id="shoulderStickers" checked>
                         <span class="checkbox-label">Shoulder Stickers</span>
                     </label>
                 </div>
-            </div>
 
             <div class="control-section">
-                <div class="section-title">Body Tracking</div>
-                <div class="control-group">
-                    <button class="tracking-button active" id="poseDetection">
-                        <span class="tracking-status">●</span>
-                        Auto Tracking ON
-                    </button>
-                </div>
-
-                <div class="control-group" style="margin-top: 20px;">
-                    <div class="pose-test-button" data-pose="neutral">
-                        <span class="pose-emoji">🧍</span>
-                        <div class="pose-info">
-                            <div class="pose-name">Neutral</div>
-                            <div class="pose-desc">Relaxed standing position</div>
-                        </div>
+                <div class="section-title">Debug Info</div>
+                <div class="debug-info">
+                    <div class="debug-item">
+                        <span class="debug-label">Pose:</span>
+                        <span class="debug-value" id="debugPose">none</span>
                     </div>
-
-                    <div class="pose-test-button featured-pose" data-pose="mountain">
-                        <span class="pose-emoji">🗼</span>
-                        <div class="pose-info">
-                            <div class="pose-name">Prime Tower</div>
-                            <div class="pose-desc">Both arms lifted up → Iguazu Falls</div>
-                        </div>
+                    <div class="debug-item">
+                        <span class="debug-label">Building:</span>
+                        <span class="debug-value" id="debugBuilding">none</span>
                     </div>
-
-                    <div class="pose-test-button featured-pose" data-pose="jesus">
-                        <span class="pose-emoji">🗽</span>
-                        <div class="pose-info">
-                            <div class="pose-name">Cristo Redentor</div>
-                            <div class="pose-desc">Arms to sides → Jungfraujoch</div>
-                        </div>
+                    <div class="debug-item">
+                        <span class="debug-label">Nature:</span>
+                        <span class="debug-value" id="debugNature">none</span>
                     </div>
                 </div>
             </div>
@@ -710,13 +764,11 @@
                     <button class="tracking-button" id="fullscreenBtn">
                         📺 Fullscreen
                     </button>
-                    <button class="tracking-button" id="trackingToggleBtn">
-                        🦴 Hide Skeleton
-                    </button>
                 </div>
             </div>
 
-        </div>
+</div>
+</div>
     </div>
 
     <div class="main-content">
@@ -726,22 +778,25 @@
                 <video id="videoElement" autoplay playsinline></video>
                 <canvas id="outputCanvas"></canvas>
                 <canvas id="overlayCanvas"></canvas>
+                <div id="pixiContainer"></div>
             </div>
 
-            <div class="status" id="status">
-                <span class="loading">Initializing camera and AI models...</span>
-            </div>
+            <!-- Status removed for cleaner interface -->
 
         </div>
     </div>
 
 
 
+    <!-- PixiJS Library -->
+    <script src="https://pixijs.download/release/pixi.min.js"></script>
+
     <!-- Layer System -->
     <script src="layers/BaseLayer.js"></script>
     <script src="layers/BackgroundLayer.js"></script>
     <script src="layers/BuildingLayer.js"></script>
     <script src="layers/NatureLayer.js"></script>
+    <script src="layers/PixiMeshLayer.js"></script>
     <script src="layers/LayerManager.js"></script>
 
     <!-- Main Application -->

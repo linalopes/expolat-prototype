@@ -29,27 +29,25 @@ class BuildingLayer extends BaseLayer {
             return false;
         }
 
-        if (this.config.textureType === 'none') {
-            return true; // Nothing to render, but consider it successful
-        }
-
-        //console.log(`PersonLayer rendering: textureType=${this.config.textureType}, currentTexture=${this.config.currentTexture}, poses=${poses?.length || 0}`);
-
-        switch (this.config.textureType) {
-            case 'image':
-                //console.log('Calling applyImageTexture');
-                await this.applyImageTexture(pixels, mask);
-                break;
-            case 'color':
-                //console.log('Calling applyColorOverlay');
-                this.applyColorOverlay(pixels, mask, timestamp);
-                break;
-            default:
-                console.warn(`Unknown texture type: ${this.config.textureType}`);
-                return false;
-        }
-
+        // Always render ghost effect within contour
+        this.applyGhostEffect(pixels, mask);
         return true;
+    }
+
+    applyGhostEffect(pixels, mask) {
+        // Create translucent ghost effect showing camera feed within contour
+        const ghostOpacity = 0.15; // Very faint ghost effect
+
+        for (let i = 0; i < pixels.length; i += 4) {
+            const maskValue = mask[i] / 255;
+            if (maskValue > this.config.confidenceThreshold) {
+                // Keep original camera pixels but make them very faint
+                pixels[i] = pixels[i] * ghostOpacity + 255 * (1 - ghostOpacity);     // R
+                pixels[i + 1] = pixels[i + 1] * ghostOpacity + 255 * (1 - ghostOpacity); // G
+                pixels[i + 2] = pixels[i + 2] * ghostOpacity + 255 * (1 - ghostOpacity); // B
+                // Alpha stays the same
+            }
+        }
     }
 
     shouldRender(inputData, timestamp) {
@@ -59,13 +57,14 @@ class BuildingLayer extends BaseLayer {
 
     async applyImageTexture(pixels, mask) {
         // Check if texture image is valid and properly loaded
+        // Remove excessive debug logging
+
         if (!this.textureImage ||
             !this.textureImage.complete ||
             !this.config.currentTexture ||
             this.textureImage.naturalWidth === 0 ||
             this.textureImage.naturalHeight === 0) {
-            console.warn('Texture image is not ready or failed to load, skipping texture application');
-            return;
+            return; // Skip texture application silently
         }
 
         // Calculate the bounding box of the detected contour
@@ -107,7 +106,7 @@ class BuildingLayer extends BaseLayer {
             !this.textureImage.complete ||
             this.textureImage.naturalWidth === 0 ||
             this.textureImage.naturalHeight === 0) {
-            console.warn('Texture image is not ready for pattern creation, skipping pattern application');
+            // Skip pattern application silently
             return;
         }
 
@@ -161,20 +160,30 @@ class BuildingLayer extends BaseLayer {
             if (maskValue > this.config.confidenceThreshold) {
                 const blend = this.config.effectIntensity;
 
-                // Handle transparent or white texture backgrounds
+                // Handle transparency properly - transparent areas should be white/background color
                 const textureAlpha = textureData[i + 3] / 255;
                 let finalR = textureData[i];
                 let finalG = textureData[i + 1];
                 let finalB = textureData[i + 2];
 
-                // If texture has transparency or is near-white, blend with background color
-                if (textureAlpha < 0.9 || this.isNearWhite(finalR, finalG, finalB)) {
-                    if (backgroundColor) {
-                        const bgBlend = (1 - textureAlpha) + (this.isNearWhite(finalR, finalG, finalB) ? 0.8 : 0);
-                        finalR = finalR * (1 - bgBlend) + backgroundColor.r * bgBlend;
-                        finalG = finalG * (1 - bgBlend) + backgroundColor.g * bgBlend;
-                        finalB = finalB * (1 - bgBlend) + backgroundColor.b * bgBlend;
-                    }
+                // If pixel is transparent or semi-transparent, render as white/background
+                if (textureAlpha < 0.95) {
+                    // Use white as default for transparent areas in architectural drawings
+                    const whiteR = 255;
+                    const whiteG = 255;
+                    const whiteB = 255;
+
+                    // Blend transparent areas with white background
+                    finalR = finalR * textureAlpha + whiteR * (1 - textureAlpha);
+                    finalG = finalG * textureAlpha + whiteG * (1 - textureAlpha);
+                    finalB = finalB * textureAlpha + whiteB * (1 - textureAlpha);
+                }
+
+                // Also handle near-white areas
+                if (this.isNearWhite(finalR, finalG, finalB)) {
+                    finalR = 255;
+                    finalG = 255;
+                    finalB = 255;
                 }
 
                 pixels[i] = pixels[i] * (1 - blend) + finalR * blend;
@@ -186,6 +195,10 @@ class BuildingLayer extends BaseLayer {
 
     isNearWhite(r, g, b, threshold = 200) {
         return r > threshold && g > threshold && b > threshold;
+    }
+
+    isNearBlack(r, g, b, threshold = 50) {
+        return r < threshold && g < threshold && b < threshold;
     }
 
     hexToRgb(hex) {
@@ -279,7 +292,11 @@ class BuildingLayer extends BaseLayer {
 
         if (textureType === 'image') {
             this.textureImage.onload = () => {
-                console.log(`✓ Texture loaded successfully: ${texturePath}`);
+                console.log(`✓ Texture loaded successfully: ${texturePath}`, {
+                    naturalWidth: this.textureImage.naturalWidth,
+                    naturalHeight: this.textureImage.naturalHeight,
+                    complete: this.textureImage.complete
+                });
                 this.invalidate();
             };
 
@@ -293,6 +310,7 @@ class BuildingLayer extends BaseLayer {
                 this.invalidate();
             };
 
+            console.log(`Setting textureImage.src to: ${texturePath}`);
             this.textureImage.src = texturePath;
         } else {
             console.log(`Non-image texture type (${textureType}), invalidating layer`);

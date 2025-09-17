@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple PixiJS Mesh Test</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background-color: #222;
+            color: white;
+            font-family: Arial, sans-serif;
+        }
+        #container {
+            width: 800px;
+            height: 600px;
+            border: 2px solid #fff;
+            background-color: #444;
+        }
+    </style>
+    <script src="https://pixijs.download/release/pixi.min.js"></script>
+</head>
+<body>
+    <h1>Simple PixiJS Mesh Test</h1>
+    <p>Testing if we can get ANY mesh working first...</p>
+    <div id="container"></div>
+
+    <script>
+        console.log('Starting simple mesh test...');
+        console.log('PIXI available:', typeof PIXI);
+
+        (async () => {
+            try {
+                // Create PixiJS app with simpler setup
+                const app = new PIXI.Application();
+
+                console.log('App created, initializing...');
+
+                await app.init({
+                    width: 800,
+                    height: 600,
+                    backgroundColor: 0x1099bb
+                });
+
+                document.getElementById('container').appendChild(app.canvas);
+                console.log('✓ Canvas added to page');
+
+                // First test: Simple sprite without mesh
+                console.log('Testing basic sprite first...');
+
+                const graphics = new PIXI.Graphics();
+                graphics.beginFill(0xff0000);
+                graphics.drawRect(0, 0, 100, 100);
+                graphics.endFill();
+                graphics.x = 50;
+                graphics.y = 50;
+                app.stage.addChild(graphics);
+                console.log('✓ Red rectangle added');
+
+                // Load texture properly using async method
+                let texture;
+                try {
+                    console.log('Loading texture with Assets.load...');
+                    texture = await PIXI.Assets.load('images/prime.png');
+                    console.log('✓ Texture loaded successfully:', {
+                        valid: texture.valid,
+                        width: texture.width,
+                        height: texture.height,
+                        source: texture.source
+                    });
+                } catch (err) {
+                    console.error('Texture loading failed:', err);
+                    console.log('Using white texture fallback');
+                    texture = PIXI.Texture.WHITE;
+                }
+
+                // Create simple sprite first
+                const sprite = new PIXI.Sprite(texture);
+                sprite.x = 200;
+                sprite.y = 50;
+                sprite.width = 100;
+                sprite.height = 100;
+                app.stage.addChild(sprite);
+                console.log('✓ Sprite added');
+
+                // Now try the simplest possible mesh
+                console.log('Creating simple mesh...');
+
+                // Just a simple quad (2 triangles)
+                const vertices = new Float32Array([
+                    0, 0,      // top-left
+                    200, 0,    // top-right
+                    200, 200,  // bottom-right
+                    0, 200     // bottom-left
+                ]);
+
+                const uvs = new Float32Array([
+                    0, 0,  // top-left UV
+                    1, 0,  // top-right UV
+                    1, 1,  // bottom-right UV
+                    0, 1   // bottom-left UV
+                ]);
+
+                const indices = new Uint16Array([
+                    0, 1, 2,  // first triangle
+                    0, 2, 3   // second triangle
+                ]);
+
+                const geometry = new PIXI.MeshGeometry(vertices, uvs, indices);
+                console.log('✓ Simple geometry created');
+
+                // PixiJS 8.x: Mesh constructor takes geometry and texture directly
+                const mesh = new PIXI.Mesh(geometry, texture);
+
+                mesh.x = 350;
+                mesh.y = 100;
+                app.stage.addChild(mesh);
+
+                console.log('✓ Simple mesh added');
+                console.log('Mesh properties:', {
+                    x: mesh.x,
+                    y: mesh.y,
+                    visible: mesh.visible,
+                    alpha: mesh.alpha,
+                    width: mesh.width,
+                    height: mesh.height
+                });
+
+            } catch (error) {
+                console.error('❌ Error:', error);
+                document.getElementById('container').innerHTML = `<p style="color: red;">Error: ${error.message}<br>Stack: ${error.stack}</p>`;
+            }
+        })();
+    </script>
+</body>
+</html>

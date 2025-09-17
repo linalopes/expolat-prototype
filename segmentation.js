@@ -82,7 +82,14 @@ class PersonSegmentation {
             this.loadShoulderStickerImages();
             this.startProcessing();
 
-            document.getElementById('status').innerHTML = '<span>✓ Ready! AI pose detection and texture mapping active.</span>';
+            // Hide status element completely - no video labels needed
+            const statusEl = document.getElementById('status');
+            if (statusEl) {
+                statusEl.style.display = 'none';
+                console.log('✓ Status element hidden');
+            } else {
+                console.log('ℹ️ No status element found to hide');
+            }
 
             // Set initial overlay
             const natureLayer = this.layerManager.getLayer('nature');
@@ -157,12 +164,26 @@ class PersonSegmentation {
             currentOverlay: this.currentOverlay
         });
 
+        // Create and configure PixiJS mesh layer
+        console.log('About to create PixiMeshLayer, class available:', typeof PixiMeshLayer);
+        if (typeof PixiMeshLayer === 'undefined') {
+            console.error('PixiMeshLayer class is not defined!');
+            return;
+        }
+        this.pixiMeshLayer = new PixiMeshLayer({
+            pixiContainer: 'pixiContainer',
+            debugMode: true // Debug mode matches default checkbox state
+        });
+        console.log('PixiMeshLayer created successfully:', !!this.pixiMeshLayer);
+
         // Add layers to manager
         this.layerManager.addLayer(this.backgroundLayer);
+        // Re-enable BuildingLayer alongside PixiJS mesh
         this.layerManager.addLayer(this.buildingLayer);
         this.layerManager.addLayer(this.natureLayer);
+        this.layerManager.addLayer(this.pixiMeshLayer);
 
-        console.log('Layer system initialized: Background, Building, Nature layers');
+        console.log('Layer system initialized: Background, Building, Nature, PixiMesh layers');
     }
 
     async loadMediaPipe() {
@@ -271,7 +292,8 @@ class PersonSegmentation {
             pixels: pixels,
             mask: maskData,
             poses: this.poses,
-            imageData: imageData
+            imageData: imageData,
+            currentPose: this.currentPose  // Pass the already-detected pose
         };
 
         // Use layer system for rendering
@@ -448,11 +470,18 @@ class PersonSegmentation {
                 this.currentTexture = `images/${textureFile}`;
                 this.buildingLayer.setTexture(this.currentTexture, 'image');
                 console.log(`Building texture set to: ${textureFile}`);
+
+                // Update debug display
+                const buildingName = textureFile.replace('.png', '').replace('.jpg', '');
+                this.updateDebugDisplay(null, buildingName, null);
             }
         } else if (!this.settings.buildingOverlayEnabled) {
             // Clear building textures if building overlay is disabled
             this.buildingLayer.updateConfig({ textureType: 'none' });
             this.currentTexture = null;
+
+            // Update debug display
+            this.updateDebugDisplay(null, 'none', null);
             console.log('Building overlay disabled, clearing textures');
         }
 
@@ -479,6 +508,10 @@ class PersonSegmentation {
             blendMode: 'normal'
         };
 
+        // Update debug display for nature
+        const natureName = this.currentOverlay.image ? this.currentOverlay.image.replace('.png', '').replace('.jpg', '') : 'none';
+        this.updateDebugDisplay(null, null, natureName);
+
         const natureLayer = this.layerManager.getLayer('nature');
         if (natureLayer) {
             natureLayer.setOverlay(this.currentOverlay);
@@ -501,8 +534,8 @@ class PersonSegmentation {
         const statusEl = document.getElementById('status');
         if (!statusEl) return;
 
-        const buildingInfo = pose.textures?.building?.primary || 'None';
-        statusEl.innerHTML = `<span>✨ ${pose.name} detected | Building: ${buildingInfo} | Nature: ${this.currentOverlay?.image || 'Color'}</span>`;
+        // Remove the top status bar since we have debug info in sidebar
+        statusEl.style.display = 'none';
     }
 
     drawPoseKeypoints() {
@@ -1018,6 +1051,29 @@ class PersonSegmentation {
             });
         }
 
+        // PixiJS meshes checkbox
+        const pixiMeshesCheckbox = document.getElementById('pixiMeshes');
+        if (pixiMeshesCheckbox) {
+            // Set initial state
+            pixiMeshesCheckbox.checked = true;
+
+            // Enable the layer initially since checkbox is checked
+            if (this.pixiMeshLayer) {
+                console.log('🔧 Enabling PixiJS mesh layer initially...');
+                this.pixiMeshLayer.setEnabled(true);
+            }
+
+            pixiMeshesCheckbox.addEventListener('change', () => {
+                const isEnabled = pixiMeshesCheckbox.checked;
+                console.log('PixiJS meshes enabled:', isEnabled);
+
+                // Enable/disable the PixiJS mesh layer
+                if (this.pixiMeshLayer) {
+                    this.pixiMeshLayer.setEnabled(isEnabled);
+                }
+            });
+        }
+
         // Nature overlay checkbox
         const natureOverlayCheckbox = document.getElementById('natureOverlay');
         if (natureOverlayCheckbox) {
@@ -1090,11 +1146,27 @@ class PersonSegmentation {
         }
 
 
-        // Skeleton/tracking toggle button
-        const trackingToggleBtn = document.getElementById('trackingToggleBtn');
-        if (trackingToggleBtn) {
-            trackingToggleBtn.addEventListener('click', () => {
-                this.toggleSkeletonVisibility();
+        // Pose skeleton checkbox
+        const poseSkeletonCheckbox = document.getElementById('poseSkeleton');
+        if (poseSkeletonCheckbox) {
+            poseSkeletonCheckbox.addEventListener('change', () => {
+                this.toggleSkeletonVisibility(poseSkeletonCheckbox.checked);
+            });
+        }
+
+        // Pose landmarks checkbox
+        const poseLandmarksCheckbox = document.getElementById('poseLandmarks');
+        if (poseLandmarksCheckbox) {
+            poseLandmarksCheckbox.addEventListener('change', () => {
+                this.togglePixiDebug(poseLandmarksCheckbox.checked);
+            });
+        }
+
+        // Mesh wireframe checkbox
+        const meshWireframeCheckbox = document.getElementById('meshWireframe');
+        if (meshWireframeCheckbox) {
+            meshWireframeCheckbox.addEventListener('change', () => {
+                this.toggleMeshWireframe(meshWireframeCheckbox.checked);
             });
         }
     }
@@ -1176,8 +1248,7 @@ class PersonSegmentation {
     async loadShoulderStickerImages() {
         // Load all sticker image variants
         const allStickerImages = [
-            'prime.svg', 'prime-tower.svg', 'tower-icon.svg',
-            'cristo.svg', 'cristoredentor.svg'
+            'prime.svg', 'cristoredentor.png'
         ];
 
         const imagePromises = allStickerImages.map(filename => {
@@ -1559,20 +1630,30 @@ class PersonSegmentation {
     }
 
 
-    toggleSkeletonVisibility() {
-        const trackingToggleBtn = document.getElementById('trackingToggleBtn');
-
-        // Toggle skeleton visibility in config
+    toggleSkeletonVisibility(isVisible) {
+        // Set skeleton visibility in config
         if (this.textureConfig?.settings) {
-            this.textureConfig.settings.showPoseKeypoints = !this.textureConfig.settings.showPoseKeypoints;
+            this.textureConfig.settings.showPoseKeypoints = isVisible;
         } else {
-            this.skeletonVisible = !this.skeletonVisible;
+            this.skeletonVisible = isVisible;
         }
+    }
 
-        const isVisible = this.textureConfig?.settings?.showPoseKeypoints || this.skeletonVisible;
+    togglePixiDebug(isEnabled) {
+        if (this.pixiMeshLayer) {
+            this.pixiMeshLayer.setDebugMode(isEnabled);
+            console.log('PixiJS Debug mode:', isEnabled ? 'ON' : 'OFF');
+        }
+    }
 
-        if (trackingToggleBtn) {
-            trackingToggleBtn.innerHTML = isVisible ? '🦴 Hide Skeleton' : '🦴 Show Skeleton';
+    toggleMeshWireframe(isEnabled) {
+        console.log('🔧 toggleMeshWireframe called with:', isEnabled);
+        if (this.pixiMeshLayer) {
+            console.log('🔧 Calling setWireframeMode on pixiMeshLayer');
+            this.pixiMeshLayer.setWireframeMode(isEnabled);
+            console.log('Mesh Wireframe mode:', isEnabled ? 'ON' : 'OFF');
+        } else {
+            console.log('🔴 pixiMeshLayer not found!');
         }
     }
 
@@ -1585,8 +1666,26 @@ class PersonSegmentation {
             this.video.srcObject.getTracks().forEach(track => track.stop());
         }
     }
+
+    updateDebugDisplay(poseType = null, building = null, nature = null) {
+        const debugPose = document.getElementById('debugPose');
+        const debugBuilding = document.getElementById('debugBuilding');
+        const debugNature = document.getElementById('debugNature');
+
+        if (debugPose && poseType !== null) {
+            debugPose.textContent = poseType || 'none';
+        }
+
+        if (debugBuilding && building !== null) {
+            debugBuilding.textContent = building || 'none';
+        }
+
+        if (debugNature && nature !== null) {
+            debugNature.textContent = nature || 'none';
+        }
+    }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    new PersonSegmentation();
+    window.personSegmentation = new PersonSegmentation();
 });
