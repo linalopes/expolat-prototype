@@ -29,6 +29,18 @@ let primeImage = null; // Prime_1.png
 let pixiApp = null; // PixiJS application instance
 let debugMarkers = []; // Debug markers for vertices 14, 15, 26, 27
 
+// PixiJS container layers for organized rendering
+let bgContainer, meshesContainer, fgContainer;
+
+// Foreground mask for bottom 30% band
+let fgMask;
+
+// Foreground particle system for lilies
+let fgParticles = [];
+let fgSpawnAccumulator = 0;
+let fgPaused = false;
+let lilyTex = null;
+
 // Multi-person PixiJS plane management
 let planes = [];                    // PIXI.SimplePlane per person
 let planeContainers = [];           // PIXI.Container per person for positioning/scaling
@@ -46,6 +58,26 @@ const ROWS = 6;
 
 // Plane positioning factor (0 = shoulders, 1 = hips, 0.5 = halfway/torso center)
 const TORSO_OFFSET_FACTOR = 0.5; // Adjust to move plane up/down between shoulders and hips
+
+// Foreground mask configuration
+const FG_FRACTION = 0.30; // fraction of screen height for foreground band
+
+// Foreground particle system settings
+const FG_SETTINGS = {
+    spawnRate: 6,           // particles per second
+    maxParticles: 40,       // safety cap
+    baseScale: 0.55,        // base scale relative to texture
+    scaleJitter: 0.35,      // random extra scale
+    speedMin: 2,            // px/sec horizontal speed
+    speedMax: 10,
+    sineAmp: 6,             // vertical sine amplitude (px)
+    sineFreq: 1.1,          // sine frequency multiplier
+    lifetimeMin: 6.0,       // seconds
+    lifetimeMax: 10.0,
+    alphaStart: 0.70,
+    alphaEnd: 0.0,
+    blendMode: PIXI.BLEND_MODES.NORMAL
+};
 
 // Jitter reduction constants
 const ANCHOR_SMOOTH = 0.15;      // 0..1, higher = more smoothing for container position
@@ -149,17 +181,166 @@ async function initializePixiOverlay() {
     // Ensure video wrapper has relative positioning for absolute overlay
     videoWrapper.style.position = 'relative';
 
+    // Enable zIndex sorting for layered containers
+    pixiApp.stage.sortableChildren = true;
+
+    // Create container layers with zIndex for organized rendering
+    bgContainer = new PIXI.Container();
+    bgContainer.zIndex = 0;
+
+    meshesContainer = new PIXI.Container();
+    meshesContainer.zIndex = 10;
+
+    fgContainer = new PIXI.Container();
+    fgContainer.zIndex = 20;
+
+    // Add containers to stage in order
+    pixiApp.stage.addChild(bgContainer, meshesContainer, fgContainer);
+
+    // Create mask for fgContainer (bottom 30% band)
+    fgMask = new PIXI.Graphics();
+    fgContainer.mask = fgMask;
+    pixiApp.stage.addChild(fgMask);
+
+    // Draw initial mask for bottom 30% of canvas
+    const w = pixiApp.renderer.width;
+    const h = pixiApp.renderer.height;
+    const yTop = Math.floor(h * (1 - FG_FRACTION));
+    fgMask.clear().beginFill(0xffffff).drawRect(0, yTop, w, h - yTop).endFill();
+
     try {
-        // Preload both textures once
+        // Preload all textures once
         primeTex = await PIXI.Assets.load("generated/Prime_1.png");
         jesusTex = await PIXI.Assets.load("generated/Jesus_1.png");
+        lilyTex = await PIXI.Assets.load("./front-images/water-lily.png");
 
         // Create debug markers for vertices 14, 15, 26, 27
         // createDebugMarkers();
 
-        console.log("PixiJS overlay initialized with multi-person support and preloaded textures");
+        // Start foreground particle ticker
+        let last = performance.now() / 1000;
+        pixiApp.ticker.add(() => {
+            const now = performance.now() / 1000;
+            const dt = Math.min(now - last, 0.05);
+            last = now;
+            if (!fgPaused) updateFgParticles(dt);
+        });
+
+        console.log("PixiJS overlay initialized with multi-person support, preloaded textures, layered containers, fgContainer mask, and particle system");
     } catch (error) {
         console.error('Error loading PixiJS textures:', error);
+    }
+}
+
+// Update foreground mask when canvas is resized
+function updateFgMask() {
+    if (!pixiApp || !fgMask) return;
+
+    const w = pixiApp.renderer.width;
+    const h = pixiApp.renderer.height;
+    const yTop = Math.floor(h * (1 - FG_FRACTION));
+    fgMask.clear().beginFill(0xffffff).drawRect(0, yTop, w, h - yTop).endFill();
+}
+
+// Spawn a new lily particle in the foreground container
+function spawnFgParticle() {
+    if (!lilyTex || fgParticles.length >= FG_SETTINGS.maxParticles) return;
+
+    const w = pixiApp.renderer.width;
+    const h = pixiApp.renderer.height;
+    const yBandTop = Math.floor(h * (1 - FG_FRACTION));
+    const yBandH = h - yBandTop;
+
+    const spr = new PIXI.Sprite(lilyTex);
+    spr.anchor.set(0.5);
+    spr.alpha = FG_SETTINGS.alphaStart;
+    spr.blendMode = FG_SETTINGS.blendMode;
+
+    // Randomize initial horizontal placement
+    spr.x = Math.random() * w;
+
+    // Random scale (uniform), based on baseScale
+    const s = FG_SETTINGS.baseScale * (1 + FG_SETTINGS.scaleJitter * (Math.random() * 2 - 1));
+    spr.scale.set(s);
+
+    // Compute half-height and sine amplitude margin for safe spawning
+    const half = spr.height * 0.5;
+    const amp = FG_SETTINGS.sineAmp;
+
+    // Define minY so the sprite never crosses above the band
+    const minY = yBandTop + half + amp;
+
+    // Allow downward slack (can go below screen)
+    const downSlack = yBandH + amp;
+
+    // Set Y position with downward freedom
+    spr.y = minY + Math.random() * downSlack;
+
+    // Random horizontal direction & speed
+    const dir = Math.random() < 0.5 ? -1 : 1;
+    const speed = smoothLerp(FG_SETTINGS.speedMin, FG_SETTINGS.speedMax, Math.random()) * dir;
+
+    // Lifetime seconds
+    const life = smoothLerp(FG_SETTINGS.lifetimeMin, FG_SETTINGS.lifetimeMax, Math.random());
+
+    // Per-particle state
+    spr.__p = {
+        age: 0,
+        life,
+        speed,
+        phase: Math.random() * Math.PI * 2, // sine seed
+        sineAmp: FG_SETTINGS.sineAmp * (0.7 + Math.random()*0.6),
+        sineFreq: FG_SETTINGS.sineFreq * (0.8 + Math.random()*0.4),
+        baseY: spr.y
+    };
+
+    fgContainer.addChild(spr);
+    fgParticles.push(spr);
+}
+
+// Update all foreground particles
+function updateFgParticles(dt) {
+    const w = pixiApp.renderer.width;
+    const h = pixiApp.renderer.height;
+    const yBandTop = Math.floor(h * (1 - FG_FRACTION));
+
+    // Spawn at rate (particles/sec)
+    fgSpawnAccumulator += dt * FG_SETTINGS.spawnRate;
+    while (fgSpawnAccumulator >= 1) {
+        spawnFgParticle();
+        fgSpawnAccumulator -= 1;
+    }
+
+    // Update & recycle
+    for (let i = fgParticles.length - 1; i >= 0; i--) {
+        const spr = fgParticles[i];
+        const p = spr.__p;
+
+        p.age += dt;
+
+        // Horizontal move + wrap
+        spr.x += p.speed * dt;
+        if (spr.x < -spr.width) spr.x = w + spr.width * 0.5;
+        if (spr.x > w + spr.width) spr.x = -spr.width * 0.5;
+
+        // Gentle sine drift around baseY with clamping
+        p.phase += p.sineFreq * dt;
+        spr.y = p.baseY + Math.sin(p.phase) * p.sineAmp;
+
+        // Clamp Y only at the top - allow downward movement
+        const half = spr.height * 0.5;
+        const topLimit = yBandTop + half;
+        if (spr.y < topLimit) spr.y = topLimit;
+
+        // Lifetime alpha fade (ease-in-out-ish)
+        const t = Math.min(p.age / p.life, 1);
+        spr.alpha = smoothLerp(FG_SETTINGS.alphaStart, FG_SETTINGS.alphaEnd, t);
+
+        // Recycle when dead
+        if (p.age >= p.life) {
+            fgContainer.removeChild(spr);
+            fgParticles.splice(i, 1);
+        }
     }
 }
 
@@ -272,7 +453,7 @@ function ensurePlaneForPerson(personIndex) {
     if (!planes[personIndex]) {
         // Create container for positioning and scaling
         planeContainers[personIndex] = new PIXI.Container();
-        pixiApp.stage.addChild(planeContainers[personIndex]);
+        meshesContainer.addChild(planeContainers[personIndex]);
 
         // Create plane with default texture (will be switched based on pose)
         planes[personIndex] = new PIXI.SimplePlane(primeTex, COLS, ROWS);
@@ -875,6 +1056,8 @@ function setupControls() {
                 // Set pixel-perfect sizing
                 pixiApp.view.style.width = originalWidth + 'px';
                 pixiApp.view.style.height = originalHeight + 'px';
+                // Update foreground mask for new size
+                updateFgMask();
                 // Note: Planes are now positioned per-person, no full-canvas reset needed
             }
         }
@@ -900,6 +1083,8 @@ function toggleFullscreen() {
                 // Set pixel-perfect sizing
                 pixiApp.view.style.width = window.innerWidth + 'px';
                 pixiApp.view.style.height = window.innerHeight + 'px';
+                // Update foreground mask for new size
+                updateFgMask();
                 // Note: Planes are now positioned per-person, no full-canvas reset needed
             }
         }).catch(err => {
