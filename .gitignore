@@ -75,14 +75,6 @@ temp/
 logs
 *.log
 
-# AI Generated Images (optional - you might want to keep these)
-generated/
-*.png
-*.jpg
-*.jpeg
-*.gif
-*.webp
-
 # OS generated files
 .DS_Store
 .DS_Store?
