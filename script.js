@@ -80,8 +80,8 @@ function preload() {
     bodyPose = ml5.bodyPose({ flipHorizontal: true });
 
     // Load local images for poses
-    jesusImage = loadImage('generated/Jesus_1.png');
-    primeImage = loadImage('generated/Prime_1.png');
+    jesusImage = loadImage('./generated/Jesus_1.png');
+    primeImage = loadImage('./generated/Prime_1.png');
 
     console.log("Loading local images: Jesus_1.png and Prime_1.png");
 }
@@ -572,12 +572,12 @@ function draw() {
 
             // Use the same factor as stickers (5.5) to set the plane width in screen pixels
             const targetWidth = shoulderWidth * 5.5;
-            const scale = targetWidth / planes[i].texture.width;
+            const scaleFactor = targetWidth / planes[i].texture.width;
 
             // Apply smoothing and dead-zone to reduce jitter
             const rawX = cx;
             const rawY = cyNavel;
-            const rawScale = scale;
+            const rawScale = scaleFactor;
 
             // Dead-zone for position
             const prevX = anchorPos[i].x;
