@@ -11,6 +11,8 @@ Two-person simultaneous pose detection with immediate visual feedback:
 
 Each person gets their own PixiJS deformable mesh overlay anchored to their body. The mesh warps in real-time based on shoulder and hip movements, creating a dynamic visual experience.
 
+- **Foreground particle layer** in the bottom 30% of the screen, using transparent PNG sprites (water lilies).
+
 **Note**: Legacy p5.js stickers remain in the codebase (disabled via `USE_P5_STICKERS = false`) but PixiJS mesh overlays are the primary rendering path.
 
 ## ✨ Features
@@ -26,12 +28,13 @@ Each person gets their own PixiJS deformable mesh overlay anchored to their body
 - **Jitter Reduction**: Smoothing and dead-zones for stable overlays when standing still
 - **Interactive Controls**: Fullscreen, Hide Video, Hide Tracking
 - **Local Assets**: Images from `/generated` folder (Prime_1.png, Jesus_1.png)
+- **Foreground Particle Layer**: Animated lilies (PNG with alpha) drift horizontally in the bottom 30% band, masked by PixiJS. Parameters: spawn rate, lifetime, sine drift, alpha fade, blend mode.
 
 ## 🛠️ Tech Stack
 
 - **p5.js**: Canvas rendering and video capture
 - **ml5.js**: Real-time body pose detection
-- **PixiJS**: Overlay rendering with deformable mesh (SimplePlane)
+- **PixiJS**: Overlay rendering with deformable meshes and foreground particle layers
 - **Bootstrap 5**: UI framework with custom CSS
 
 ## 🚀 Getting Started
@@ -82,6 +85,8 @@ between-verses/
 ├── generated/              # Local overlay images
 │   ├── Jesus_1.png        # Jesus pose texture
 │   └── Prime_1.png        # Prime Tower pose texture
+├── front-images/           # Assets for foreground lilies layer
+│   └── water-lily.png     # Water lily particle texture
 ├── pixijs-test/           # Standalone mesh warp prototype
 │   └── index.html         # Drag control points demo
 ├── jesus.svg              # Jesus pose instruction icon
@@ -108,6 +113,16 @@ Standalone SimplePlane mesh warping prototype for testing and debugging:
 - **`DEAD_ZONE_PX`**: 0.4 (pixel threshold for jitter reduction)
 - **`SCALE_DEAD`**: 0.002 (scale change threshold)
 - **Confidence threshold**: 0.3 (minimum keypoint confidence)
+
+### Foreground Particle Settings
+- **`FG_FRACTION`**: 0.30 (height fraction for the foreground band)
+- **`FG_SETTINGS.spawnRate`**: 6 (particles per second)
+- **`FG_SETTINGS.maxParticles`**: 40 (maximum particle count)
+- **`FG_SETTINGS.sineAmp`**: 6 (vertical sine amplitude in pixels)
+- **`FG_SETTINGS.sineFreq`**: 1.1 (sine frequency multiplier)
+- **`FG_SETTINGS.alphaStart/End`**: 0.70 → 0.0 (alpha fade range)
+- **`FG_SETTINGS.blendMode`**: PIXI.BLEND_MODES.NORMAL
+- **Lily texture**: Loaded from `/front-images/water-lily.png`
 
 ### Mesh Configuration
 - **Grid size**: 6×6 vertices (36 total)
@@ -146,6 +161,11 @@ Standalone SimplePlane mesh warping prototype for testing and debugging:
 - Check pose criteria: Prime (hands on head, close together) or Jesus (arms extended horizontally)
 - Ensure stable pose holding (system responds immediately, no debouncing)
 
+### Foreground Particle Issues
+- If lilies appear outside the bottom 30% band, check the mask and clamp logic in `updateFgParticles()`
+- Verify `FG_FRACTION` is set to 0.30 for correct band sizing
+- Ensure `water-lily.png` exists in `/front-images/` folder
+
 ## 🚀 Roadmap
 
 - **Falloff-based global warping**: More vertices for smoother deformation
@@ -153,6 +173,8 @@ Standalone SimplePlane mesh warping prototype for testing and debugging:
 - **Better ID tracking**: Consistent person identification across frames
 - **Video mapping integration**: Stage/projection mapping capabilities
 - **Performance optimization**: WebGL optimizations for larger crowds
+- **Foreground layer enhancements**: Experiment with other assets (stones, grass, sand, flowers)
+- **ParticleContainer optimization**: If particle count increases significantly
 
 ## 📄 License
 
