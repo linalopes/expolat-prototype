@@ -11,6 +11,7 @@ Two-person simultaneous pose detection with immediate visual feedback:
 
 Each person gets their own PixiJS deformable mesh overlay anchored to their body. The mesh warps in real-time based on shoulder and hip movements, creating a dynamic visual experience.
 
+- **Background layer** with configurable opacity, scaled to cover the canvas (e.g., mountain, arara landscapes).
 - **Foreground particle layer** in the bottom 30% of the screen, using transparent PNG sprites (water lilies).
 
 **Note**: Legacy p5.js stickers remain in the codebase (disabled via `USE_P5_STICKERS = false`) but PixiJS mesh overlays are the primary rendering path.
@@ -19,7 +20,8 @@ Each person gets their own PixiJS deformable mesh overlay anchored to their body
 
 - **Two-Person Simultaneous Support**: Independent tracking and overlays per person
 - **Real-Time Pose Detection**: ml5.js bodyPose with immediate response (no debouncing)
-- **PixiJS Deformable Mesh**: 6×6 grid SimplePlane that warps with body movements
+- **Background Layer**: Static background image (bgSprite) in PixiJS, scaled to cover the canvas, with configurable opacity (`BG_ALPHA`, default 0.5)
+- **PixiJS Deformable Mesh**: 6×6 grid SimplePlane that warps with body movements and uses `MULTIPLY` blend mode for visual integration with the background
 - **Body-Anchored Positioning**:
   - Centered horizontally between shoulders
   - Vertically positioned along shoulder→hip line via `TORSO_OFFSET_FACTOR`
@@ -34,7 +36,7 @@ Each person gets their own PixiJS deformable mesh overlay anchored to their body
 
 - **p5.js**: Canvas rendering and video capture
 - **ml5.js**: Real-time body pose detection
-- **PixiJS**: Overlay rendering with deformable meshes and foreground particle layers
+- **PixiJS**: Overlay rendering with deformable meshes, background image, and foreground particle layers
 - **Bootstrap 5**: UI framework with custom CSS
 
 ## 🚀 Getting Started
@@ -87,6 +89,9 @@ between-verses/
 │   └── Prime_1.png        # Prime Tower pose texture
 ├── front-images/           # Assets for foreground lilies layer
 │   └── water-lily.png     # Water lily particle texture
+├── bg-images/             # Background images
+│   ├── mountain.png       # Mountain landscape background
+│   └── arara.png          # Arara landscape background
 ├── pixijs-test/           # Standalone mesh warp prototype
 │   └── index.html         # Drag control points demo
 ├── jesus.svg              # Jesus pose instruction icon
@@ -124,16 +129,23 @@ Standalone SimplePlane mesh warping prototype for testing and debugging:
 - **`FG_SETTINGS.blendMode`**: PIXI.BLEND_MODES.NORMAL
 - **Lily texture**: Loaded from `/front-images/water-lily.png`
 
+### Background Settings
+- **`BG_ALPHA`**: 0.5 (background sprite opacity)
+- **Background texture**: Loaded from `/bg-images/` (e.g., mountain.png, arara.png)
+- **Scaling**: Cover mode (maintains aspect ratio, fills canvas)
+- **Blend mode**: NORMAL (background renders normally)
+
 ### Mesh Configuration
 - **Grid size**: 6×6 vertices (36 total)
 - **Controlled vertices**: 14, 15 (shoulders), 26, 27 (hips)
 - **Texture mapping**: Local coordinates based on image dimensions
+- **`MESH_BLEND_MODE`**: PIXI.BLEND_MODES.MULTIPLY (mesh blend mode for integration with background)
 
 ## 🎮 Controls
 
 | Control | Function |
 |---------|----------|
-| **Fullscreen** | Enter/exit fullscreen mode |
+| **Fullscreen** | Expands video, tracking, background, meshes, and foreground to fill the screen |
 | **Hide Video** | Toggle video feed visibility |
 | **Hide Tracking** | Toggle skeleton lines and keypoints |
 | **ESC Key** | Exit fullscreen mode |
@@ -144,6 +156,7 @@ Standalone SimplePlane mesh warping prototype for testing and debugging:
 - Ensure p5.js and PixiJS canvases share same origin and pixel-perfect dimensions
 - Check `#video-wrapper` positioning (should be `position: relative` with fixed pixel dimensions)
 - Verify both canvases use absolute positioning with `top: 0; left: 0`
+- If background image does not scale correctly on fullscreen, verify `updateFgMask()` and bgSprite scaling logic
 
 ### Jitter/Instability
 - Increase smoothing factors (`ANCHOR_SMOOTH`, `SCALE_SMOOTH`, `SMOOTHING_FACTOR`)
@@ -165,6 +178,7 @@ Standalone SimplePlane mesh warping prototype for testing and debugging:
 - If lilies appear outside the bottom 30% band, check the mask and clamp logic in `updateFgParticles()`
 - Verify `FG_FRACTION` is set to 0.30 for correct band sizing
 - Ensure `water-lily.png` exists in `/front-images/` folder
+- Ensure background sprite has alpha set correctly if it appears too strong or hides video/tracking
 
 ## 🚀 Roadmap
 
@@ -175,6 +189,7 @@ Standalone SimplePlane mesh warping prototype for testing and debugging:
 - **Performance optimization**: WebGL optimizations for larger crowds
 - **Foreground layer enhancements**: Experiment with other assets (stones, grass, sand, flowers)
 - **ParticleContainer optimization**: If particle count increases significantly
+- **Background experiments**: Test with dynamic backgrounds (clouds, sky, moving textures) and additional blend modes
 
 ## 📄 License
 

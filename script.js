@@ -12,6 +12,7 @@ let showTracking = true;
 let isFullscreen = false;
 let originalWidth = 640;
 let originalHeight = 480;
+let videoWrapper = null; // Cached reference to video-wrapper element
 
 // Per-person state arrays for multi-person support
 let personStates = []; // Current state for each person
@@ -62,11 +63,14 @@ const TORSO_OFFSET_FACTOR = 0.5; // Adjust to move plane up/down between shoulde
 // Foreground mask configuration
 const FG_FRACTION = 0.30; // fraction of screen height for foreground band
 
+// Background image opacity
+const BG_ALPHA = 0.5; // background image opacity (70% transparent)
+
 // Foreground particle system settings
 const FG_SETTINGS = {
     spawnRate: 6,           // particles per second
     maxParticles: 40,       // safety cap
-    baseScale: 0.55,        // base scale relative to texture
+    baseScale: 0.25,        // base scale relative to texture
     scaleJitter: 0.35,      // random extra scale
     speedMin: 2,            // px/sec horizontal speed
     speedMax: 10,
@@ -74,7 +78,7 @@ const FG_SETTINGS = {
     sineFreq: 1.1,          // sine frequency multiplier
     lifetimeMin: 6.0,       // seconds
     lifetimeMax: 10.0,
-    alphaStart: 0.70,
+    alphaStart: 0.90,
     alphaEnd: 0.0,
     blendMode: PIXI.BLEND_MODES.NORMAL
 };
@@ -88,6 +92,8 @@ const SCALE_DEAD = 0.002;        // unit threshold for scale changes
 // Preloaded textures
 let primeTex = null; // generated/Prime_1.png texture
 let jesusTex = null; // generated/Jesus_1.png texture
+let bgTex = null;
+let bgSprite = null; // Background sprite
 
 // Pose-to-mesh vertex mapping
 const POSE_VERTEX_MAP = {
@@ -97,6 +103,10 @@ const POSE_VERTEX_MAP = {
     right_hip: 21        // Row 4, Col 3
 };
 const SMOOTHING_FACTOR = 0.25; // Lerp factor for jitter reduction
+
+// Mesh blend mode for SimplePlane overlays
+const MESH_BLEND_MODE = PIXI.BLEND_MODES.MULTIPLY;
+// Alternative options to try later: SCREEN, OVERLAY, ADD
 
 /*
 ===========================================================
@@ -120,7 +130,7 @@ function preload() {
 
 function setup() {
     // Dynamically create the canvas and attach it to the "video-wrapper" div in the HTML
-    const videoWrapper = document.getElementById('video-wrapper');
+    videoWrapper = document.getElementById('video-wrapper');
     canvas = createCanvas(640, 480);
     canvas.parent(videoWrapper);
 
@@ -167,7 +177,6 @@ async function initializePixiOverlay() {
     });
 
     // Add PixiJS canvas to the video wrapper, positioned over p5 canvas
-    const videoWrapper = document.getElementById('video-wrapper');
     videoWrapper.appendChild(pixiApp.view);
 
     // Position PixiJS canvas absolutely over p5 canvas with pixel-perfect sizing
@@ -213,6 +222,28 @@ async function initializePixiOverlay() {
         primeTex = await PIXI.Assets.load("generated/Prime_1.png");
         jesusTex = await PIXI.Assets.load("generated/Jesus_1.png");
         lilyTex = await PIXI.Assets.load("./front-images/water-lily.png");
+        bgTex = await PIXI.Assets.load("./bg-images/mountain.png");
+
+        // Create background sprite from texture
+        bgSprite = new PIXI.Sprite(bgTex);
+        bgSprite.anchor.set(0.5);
+        bgSprite.x = pixiApp.renderer.width / 2;
+        bgSprite.y = pixiApp.renderer.height / 2;
+
+        // Background should render normally
+        bgSprite.blendMode = PIXI.BLEND_MODES.NORMAL;
+
+        // Set background opacity to 70%
+        bgSprite.alpha = BG_ALPHA;
+
+        // Scale to fit canvas while preserving aspect ratio (cover mode)
+        const scaleX = pixiApp.renderer.width / bgTex.width;
+        const scaleY = pixiApp.renderer.height / bgTex.height;
+        const scale = Math.max(scaleX, scaleY);
+        bgSprite.scale.set(scale);
+
+        // Add to background container
+        bgContainer.addChild(bgSprite);
 
         // Create debug markers for vertices 14, 15, 26, 27
         // createDebugMarkers();
@@ -232,6 +263,19 @@ async function initializePixiOverlay() {
     }
 }
 
+// Resize both p5 canvas and PixiJS overlay to specified dimensions
+function resizeAllTo(w, h) {
+    resizeCanvas(w, h);                  // p5
+    videoWrapper.style.width = w + 'px';
+    videoWrapper.style.height = h + 'px';
+    if (pixiApp) {
+        pixiApp.renderer.resize(w, h);
+        pixiApp.view.style.width = w + 'px';
+        pixiApp.view.style.height = h + 'px';
+        updateFgMask();                   // also rescale bgSprite inside it
+    }
+}
+
 // Update foreground mask when canvas is resized
 function updateFgMask() {
     if (!pixiApp || !fgMask) return;
@@ -240,6 +284,16 @@ function updateFgMask() {
     const h = pixiApp.renderer.height;
     const yTop = Math.floor(h * (1 - FG_FRACTION));
     fgMask.clear().beginFill(0xffffff).drawRect(0, yTop, w, h - yTop).endFill();
+
+    // Update background sprite size and position
+    if (bgSprite && bgTex) {
+        bgSprite.x = w / 2;
+        bgSprite.y = h / 2;
+        const scaleX = w / bgTex.width;
+        const scaleY = h / bgTex.height;
+        const scale = Math.max(scaleX, scaleY);
+        bgSprite.scale.set(scale);
+    }
 }
 
 // Spawn a new lily particle in the foreground container
@@ -458,6 +512,7 @@ function ensurePlaneForPerson(personIndex) {
         // Create plane with default texture (will be switched based on pose)
         planes[personIndex] = new PIXI.SimplePlane(primeTex, COLS, ROWS);
         planes[personIndex].alpha = 1;
+        planes[personIndex].blendMode = MESH_BLEND_MODE;
 
         // Add plane to container
         planeContainers[personIndex].addChild(planes[personIndex]);
@@ -1040,26 +1095,15 @@ function setupControls() {
     });
 
     // Listen for fullscreen change events to update our state
-    document.addEventListener('fullscreenchange', function() {
-        if (!document.fullscreenElement) {
-            // Exited fullscreen
+    document.addEventListener('fullscreenchange', () => {
+        if (document.fullscreenElement === videoWrapper) {
+            // ENTER fullscreen
+            isFullscreen = true;
+            resizeAllTo(window.innerWidth, window.innerHeight);
+        } else {
+            // EXIT fullscreen
             isFullscreen = false;
-            resizeCanvas(originalWidth, originalHeight);
-            // Update video wrapper size to match canvas
-            const videoWrapper = document.getElementById('video-wrapper');
-            videoWrapper.style.width = originalWidth + 'px';
-            videoWrapper.style.height = originalHeight + 'px';
-
-            // Also resize PixiJS app back to original size
-            if (pixiApp) {
-                pixiApp.renderer.resize(originalWidth, originalHeight);
-                // Set pixel-perfect sizing
-                pixiApp.view.style.width = originalWidth + 'px';
-                pixiApp.view.style.height = originalHeight + 'px';
-                // Update foreground mask for new size
-                updateFgMask();
-                // Note: Planes are now positioned per-person, no full-canvas reset needed
-            }
+            resizeAllTo(originalWidth, originalHeight);
         }
     });
 }
@@ -1068,25 +1112,9 @@ function setupControls() {
 function toggleFullscreen() {
     if (!document.fullscreenElement) {
         // Enter fullscreen
-        canvas.elt.requestFullscreen().then(() => {
+        videoWrapper.requestFullscreen().then(() => {
             isFullscreen = true;
-            // Resize canvas to fill screen
-            resizeCanvas(window.innerWidth, window.innerHeight);
-            // Update video wrapper size to match canvas
-            const videoWrapper = document.getElementById('video-wrapper');
-            videoWrapper.style.width = window.innerWidth + 'px';
-            videoWrapper.style.height = window.innerHeight + 'px';
-
-            // Also resize PixiJS app
-            if (pixiApp) {
-                pixiApp.renderer.resize(window.innerWidth, window.innerHeight);
-                // Set pixel-perfect sizing
-                pixiApp.view.style.width = window.innerWidth + 'px';
-                pixiApp.view.style.height = window.innerHeight + 'px';
-                // Update foreground mask for new size
-                updateFgMask();
-                // Note: Planes are now positioned per-person, no full-canvas reset needed
-            }
+            resizeAllTo(window.innerWidth, window.innerHeight);
         }).catch(err => {
             console.error('Error attempting to enable fullscreen:', err);
         });
