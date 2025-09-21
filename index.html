@@ -4,7 +4,7 @@
     <!-- Specifies the document type and language for the browser and accessibility tools -->
     <meta charset="UTF-8"> <!-- Sets the character encoding to UTF-8 for global compatibility -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0"> <!-- Ensures responsiveness on all devices -->
-    <title>EXPOLAT</title> <!-- Defines the title displayed on the browser tab -->
+    <title>Between Verses</title> <!-- Defines the title displayed on the browser tab -->
 
     <!-- Adds a favicon (icon in the browser tab) -->
     <link rel="icon" href="favicon.png">
@@ -23,15 +23,18 @@
 
     <!-- Includes ml5.js for using machine learning in creative projects -->
     <script src="https://unpkg.com/ml5@1/dist/ml5.js"></script>
+
+    <!-- Includes PixiJS for advanced graphics and overlay rendering -->
+    <script src="https://unpkg.com/pixi.js@7/dist/pixi.min.js"></script>
 </head>
 <body>
     <section id="video-section" class="d-flex justify-content-center align-items-center my-5">
         <!-- Main interactive section with a title and description -->
         <div class="container">
-            <h1 class="text-center">Expolat Prototype</h1> <!-- Game title -->
+            <h1 class="text-center">Between Verses</h1> <!-- Game title -->
 
             <!-- Wrapper for video-related content (likely interactive) -->
-            <div id="video-wrapper" class="d-flex justify-content-center align-items-center"></div>
+            <div id="video-wrapper"></div>
 
                <!-- Control buttons -->
                <div class="controls-container mt-3 d-flex justify-content-center gap-3">

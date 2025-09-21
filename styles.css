@@ -80,6 +80,14 @@ a:hover {
     transform: translateY(0);
 }
 
+/* Video Wrapper */
+#video-wrapper {
+    position: relative;
+    width: 640px;
+    height: 480px;
+    margin: 0 auto;
+}
+
 /* Controls Container */
 .controls-container {
     margin-top: 20px;

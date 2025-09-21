@@ -1,202 +1,170 @@
-# Expolat Prototype
+# Between Verses
 
-An interactive multi-person pose detection game that displays overlay stickers when players strike specific poses. Built with p5.js and ml5.js for real-time body tracking.
+An interactive installation where poses trigger body-anchored images that deform with your movement — blending Brazilian and Swiss landscapes in real time.
 
-## Overview
+## 🎯 Overview
 
-Strike one of two poses and watch as overlay stickers appear anchored to your shoulders:
+Two-person simultaneous pose detection with immediate visual feedback:
 
-- **Prime Tower Pose**: Both hands on top of your head, close together
-- **Jesus Pose**: Arms extended horizontally to the sides (open arms)
+- **Prime Tower Pose**: Both hands on top of your head, close together → shows `Prime_1.png`
+- **Jesus Pose**: Arms extended horizontally to the sides → shows `Jesus_1.png`
 
-The system supports **multiple people simultaneously**, with each person getting their own individual sticker overlay.
+Each person gets their own PixiJS deformable mesh overlay anchored to their body. The mesh warps in real-time based on shoulder and hip movements, creating a dynamic visual experience.
+
+**Note**: Legacy p5.js stickers remain in the codebase (disabled via `USE_P5_STICKERS = false`) but PixiJS mesh overlays are the primary rendering path.
 
 ## ✨ Features
 
-- **Multi-Person Support**: Track and overlay stickers for multiple people at once
-- **Real-time Pose Detection**: Uses ml5.js for accurate body pose tracking
-- **Local Image Overlays**: Uses pre-generated images from the `generated/` folder
-- **Shoulder-Anchored Stickers**: Stickers are positioned and scaled relative to shoulder width
-- **Fullscreen Mode**: Immersive experience with ESC key to exit
-- **Video Toggle**: Hide video feed to show only pose tracking
-- **Tracking Toggle**: Hide/show skeleton lines and keypoints for clean interface
-- **Responsive Design**: Works on different screen sizes
-- **Per-Person State Management**: Individual pose tracking and debouncing for each person
+- **Two-Person Simultaneous Support**: Independent tracking and overlays per person
+- **Real-Time Pose Detection**: ml5.js bodyPose with immediate response (no debouncing)
+- **PixiJS Deformable Mesh**: 6×6 grid SimplePlane that warps with body movements
+- **Body-Anchored Positioning**:
+  - Centered horizontally between shoulders
+  - Vertically positioned along shoulder→hip line via `TORSO_OFFSET_FACTOR`
+  - Scaled by shoulder width (5.5× factor)
+- **Mesh Warping**: 4 controlled vertices (indices 14,15,26,27) follow shoulders and hips
+- **Jitter Reduction**: Smoothing and dead-zones for stable overlays when standing still
+- **Interactive Controls**: Fullscreen, Hide Video, Hide Tracking
+- **Local Assets**: Images from `/generated` folder (Prime_1.png, Jesus_1.png)
 
 ## 🛠️ Tech Stack
 
-- **Frontend**: HTML5, CSS3, JavaScript (p5.js, ml5.js)
-- **Pose Detection**: ml5.js Body Pose model
-- **Styling**: Bootstrap 5 with custom CSS
-- **Local Images**: PNG files stored in `generated/` folder
+- **p5.js**: Canvas rendering and video capture
+- **ml5.js**: Real-time body pose detection
+- **PixiJS**: Overlay rendering with deformable mesh (SimplePlane)
+- **Bootstrap 5**: UI framework with custom CSS
 
-## 📋 Prerequisites
+## 🚀 Getting Started
 
-- Python 3 (for local web server)
-- Modern web browser with camera access
-- No external API keys required
-
-## 🚀 Installation & Setup
-
-### 1. Clone the Repository
+### 1. Clone and Setup
 ```bash
 git clone https://github.com/linalopes/expolat-prototype.git
 cd expolat-prototype
 ```
 
-### 2. Start the Web Server
+### 2. Start Local Server
 ```bash
 python3 -m http.server 8000
 ```
 
-### 3. Open the Application
-Navigate to `http://localhost:8000` in your browser and allow camera access.
+### 3. Open Application
+Navigate to `http://localhost:8000` and allow camera access.
 
-## 🎯 How to Play
+**Requirements**: Modern browser with camera support. HTTPS not required for localhost.
 
-1. **Allow Camera Access**: Grant permission when prompted
-2. **Position Yourself**: Stand in front of the camera with good lighting
-3. **Strike a Pose**:
-   - **Prime Tower**: Place both hands on top of your head, close together
-   - **Jesus**: Extend your arms horizontally to the sides
-4. **Watch the Magic**: Overlay stickers will appear anchored to your shoulders
-5. **Multiple People**: The system supports multiple people with individual stickers
-6. **Use Controls**:
-   - **Fullscreen**: Click to enter immersive mode
-   - **Hide Video**: Toggle to show only pose tracking
-   - **Hide Tracking**: Toggle skeleton lines and keypoints for clean interface
-   - **ESC Key**: Exit fullscreen mode
+## 🎮 How It Works
 
-## 🎨 Pose Detection Logic
+### Pose Detection
+- **Prime Tower**: Wrists above nose level, horizontally close together (within 100px)
+- **Jesus**: Arms extended horizontally (wrist further from shoulder than elbow, spread to sides)
 
-### Prime Tower Pose
-- Both wrists are above the nose level
-- Wrists are horizontally close together (within 100 pixels)
+### Per-Person Pipeline
+1. **Detect pose type** per person each frame
+2. **Ensure Pixi plane visibility** with correct texture (Prime_1.png or Jesus_1.png)
+3. **Calculate anchor position**:
+   - Horizontal: midpoint between shoulders
+   - Vertical: interpolated between shoulders and hips using `TORSO_OFFSET_FACTOR`
+4. **Calculate scale**: width = shoulderWidth × 5.5
+5. **Update mesh warp**: 4 vertices (14,15,26,27) follow shoulders/hips with smoothing
 
-### Jesus Pose
-- Arms are extended (wrist further from shoulder than elbow)
-- Arms are spread horizontally (wrists to the sides of shoulders)
-- Arms are roughly horizontal (elbow and wrist at similar heights)
-
-## 🏗️ Multi-Person Architecture
-
-### Per-Person State Management
-- **Individual Arrays**: Each person has their own state tracking
-- **Debouncing**: 12-frame stability check per person
-- **Independent Stickers**: Each person gets their own overlay image
-- **Dynamic Scaling**: Arrays resize automatically based on detected people
-
-### Sticker Placement System
-- **Shoulder Anchoring**: Stickers positioned at midpoint between shoulders
-- **Proportional Scaling**: Sticker size = 1.8 × shoulder width
-- **Confidence Checking**: Only draws when shoulder keypoints are reliable (>0.3)
-- **Individual Layers**: Each person's sticker is drawn independently
+### Legacy p5.js Stickers
+- Code preserved for reference and fallback
+- Disabled by `USE_P5_STICKERS = false` flag
+- Can be re-enabled by changing the flag to `true`
 
 ## 📁 Project Structure
 
 ```
-expolat/
-├── index.html              # Main HTML file
-├── script.js               # p5.js and ml5.js logic
+between-verses/
+├── index.html              # Main application
+├── script.js               # p5.js + ml5.js + PixiJS logic
 ├── styles.css              # Custom styling
 ├── generated/              # Local overlay images
-│   ├── Jesus_1.png         # Jesus pose sticker
-│   └── Prime_1.png         # Prime Tower pose sticker
-├── jesus.svg               # Jesus pose instruction icon
-├── prime.svg               # Prime Tower pose instruction icon
-├── favicon.png             # Website icon
-├── .gitignore              # Git ignore rules
-└── README.md               # This file
+│   ├── Jesus_1.png        # Jesus pose texture
+│   └── Prime_1.png        # Prime Tower pose texture
+├── pixijs-test/           # Standalone mesh warp prototype
+│   └── index.html         # Drag control points demo
+├── jesus.svg              # Jesus pose instruction icon
+├── prime.svg              # Prime Tower pose instruction icon
+├── favicon.png            # Website icon
+├── .gitignore             # Git ignore rules
+└── README.md              # This file
 ```
+
+### `/pixijs-test` Folder
+Standalone SimplePlane mesh warping prototype for testing and debugging:
+- Static image with draggable control points
+- Reset functionality
+- Useful for understanding mesh behavior without camera complexity
 
 ## 🔧 Configuration
 
-### Pose Detection
-- **Confidence Threshold**: 0.3 (30%)
-- **Canvas Size**: 640x480 (original), scales in fullscreen
-- **Keypoint Tracking**: Wrists, elbows, shoulders, nose
-- **Stability Frames**: 12 frames for pose confirmation
+### Key Constants
+- **`WIDTH_FACTOR`**: 5.5 (plane width = shoulderWidth × 5.5)
+- **`TORSO_OFFSET_FACTOR`**: 0.5 (0 = shoulders, 1 = hips, 0.5 = midpoint)
+- **`SMOOTHING_FACTOR`**: 0.25 (mesh vertex smoothing)
+- **`ANCHOR_SMOOTH`**: 0.15 (position smoothing)
+- **`SCALE_SMOOTH`**: 0.15 (scale smoothing)
+- **`DEAD_ZONE_PX`**: 0.4 (pixel threshold for jitter reduction)
+- **`SCALE_DEAD`**: 0.002 (scale change threshold)
+- **Confidence threshold**: 0.3 (minimum keypoint confidence)
 
-### Sticker System
-- **Scale Factor**: 1.8 × shoulder width
-- **Anchor Point**: Midpoint between left and right shoulders
-- **Image Format**: PNG with transparency support
+### Mesh Configuration
+- **Grid size**: 6×6 vertices (36 total)
+- **Controlled vertices**: 14, 15 (shoulders), 26, 27 (hips)
+- **Texture mapping**: Local coordinates based on image dimensions
 
-## 🐛 Troubleshooting
+## 🎮 Controls
 
-### Common Issues
-
-**Camera not working:**
-- Ensure HTTPS or localhost
-- Check browser permissions
-- Try refreshing the page
-
-**Pose detection not accurate:**
-- Improve lighting conditions
-- Ensure full body is visible
-- Stand 2-3 feet from camera
-- Make sure both shoulders are visible
-
-**Stickers not appearing:**
-- Check that images exist in `generated/` folder
-- Ensure pose is held steady for 12 frames
-- Verify shoulder keypoints have good confidence (>0.3)
-
-**Multiple people not working:**
-- Ensure each person is fully visible in frame
-- Check that people don't overlap too much
-- Try adjusting camera distance
-
-## 🎮 Controls Reference
-
-| Button | Function |
-|--------|----------|
+| Control | Function |
+|---------|----------|
 | **Fullscreen** | Enter/exit fullscreen mode |
 | **Hide Video** | Toggle video feed visibility |
 | **Hide Tracking** | Toggle skeleton lines and keypoints |
 | **ESC Key** | Exit fullscreen mode |
 
-## 🔒 Security Notes
+## 🐛 Troubleshooting
 
-- No external API calls or data transmission
-- All images are stored locally
-- Camera access only used for pose detection
-- No personal data is collected or stored
+### Overlay Alignment Issues
+- Ensure p5.js and PixiJS canvases share same origin and pixel-perfect dimensions
+- Check `#video-wrapper` positioning (should be `position: relative` with fixed pixel dimensions)
+- Verify both canvases use absolute positioning with `top: 0; left: 0`
 
-## 🚀 Deployment
+### Jitter/Instability
+- Increase smoothing factors (`ANCHOR_SMOOTH`, `SCALE_SMOOTH`, `SMOOTHING_FACTOR`)
+- Increase dead-zone thresholds (`DEAD_ZONE_PX`, `SCALE_DEAD`)
+- Improve lighting and camera positioning
 
-For production deployment:
+### Camera Issues
+- Use localhost or HTTPS for camera access
+- Check browser permissions
+- Ensure good lighting and full body visibility
+- Stand 2-3 feet from camera
 
-1. Set up a proper web server (not Python's simple server)
-2. Enable HTTPS for camera access
-3. Ensure all image files are properly served
-4. Test with multiple people simultaneously
+### Pose Detection Problems
+- Verify both shoulders are visible with good confidence (>0.3)
+- Check pose criteria: Prime (hands on head, close together) or Jesus (arms extended horizontally)
+- Ensure stable pose holding (system responds immediately, no debouncing)
 
-## 🤝 Contributing
+## 🚀 Roadmap
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test with multiple people
-5. Submit a pull request
+- **Falloff-based global warping**: More vertices for smoother deformation
+- **Enhanced vertex control**: Additional body landmarks for richer mesh warping
+- **Better ID tracking**: Consistent person identification across frames
+- **Video mapping integration**: Stage/projection mapping capabilities
+- **Performance optimization**: WebGL optimizations for larger crowds
 
 ## 📄 License
 
-This project is open source and available under the [MIT License](LICENSE).
+MIT License - see [LICENSE](LICENSE) for details.
 
 ## 🙏 Acknowledgments
 
 - [p5.js](https://p5js.org/) - Creative coding library
 - [ml5.js](https://ml5js.org/) - Machine learning for the web
+- [PixiJS](https://pixijs.com/) - 2D WebGL renderer
 - [Bootstrap](https://getbootstrap.com/) - CSS framework
-
-## 📞 Support
-
-If you encounter any issues or have questions, please:
-1. Check the troubleshooting section
-2. Review the browser console for errors
-3. Open an issue on GitHub
 
 ---
 
-**Have fun striking poses with friends! 🎨✨👥**
+**Experience the future of interactive pose tracking! 🎨✨👥**
