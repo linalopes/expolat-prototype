@@ -1,8 +1,8 @@
 /**
- * Base Layer Class
+ * Layer Interface Class
  * Provides common interface and functionality for all visual layers
  */
-class BaseLayer {
+class LayerInterface {
     constructor(name, config = {}) {
         this.name = name;
         this.config = {

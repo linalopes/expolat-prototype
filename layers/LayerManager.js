@@ -13,14 +13,6 @@ class LayerManager {
         this.layers = new Map();
         this.renderOrder = [];
         this.lastRender = 0;
-        this.renderStats = {
-            totalFrames: 0,
-            averageRenderTime: 0,
-            layerRenderTimes: new Map()
-        };
-
-        this.isRendering = false;
-        this.renderQueue = [];
     }
 
     /**
@@ -76,15 +68,6 @@ class LayerManager {
      * Main render method - orchestrates all layer rendering
      */
     async render(inputData, timestamp = Date.now()) {
-        if (this.isRendering) {
-            // Queue render request if already rendering
-            this.renderQueue.push({ inputData, timestamp });
-            return;
-        }
-
-        this.isRendering = true;
-        const renderStartTime = performance.now();
-
         try {
             // Prepare input data for layers
             const layerInputData = this.prepareInputData(inputData);
@@ -93,36 +76,16 @@ class LayerManager {
             for (const layer of this.renderOrder) {
                 if (!layer.config.enabled) continue;
 
-                const layerStartTime = performance.now();
-
                 try {
-                    const rendered = await layer.render(layerInputData, timestamp);
-
-                    const layerRenderTime = performance.now() - layerStartTime;
-                    this.updateLayerStats(layer.name, layerRenderTime);
-
-                    // Layer rendered successfully
+                    await layer.render(layerInputData, timestamp);
                 } catch (error) {
                     console.error(`Error rendering ${layer.name} layer:`, error);
                 }
             }
 
-            // Update render stats
-            const totalRenderTime = performance.now() - renderStartTime;
-            this.updateRenderStats(totalRenderTime);
-
             this.lastRender = timestamp;
-
-        } finally {
-            this.isRendering = false;
-
-            // Process queued renders
-            if (this.renderQueue.length > 0) {
-                const nextRender = this.renderQueue.shift();
-                requestAnimationFrame(() => {
-                    this.render(nextRender.inputData, nextRender.timestamp);
-                });
-            }
+        } catch (error) {
+            console.error('LayerManager render error:', error);
         }
     }
 
@@ -139,25 +102,6 @@ class LayerManager {
         };
     }
 
-    /**
-     * Update rendering statistics
-     */
-    updateRenderStats(renderTime) {
-        this.renderStats.totalFrames++;
-        this.renderStats.averageRenderTime =
-            (this.renderStats.averageRenderTime * (this.renderStats.totalFrames - 1) + renderTime) /
-            this.renderStats.totalFrames;
-    }
-
-    /**
-     * Update per-layer rendering statistics
-     */
-    updateLayerStats(layerName, renderTime) {
-        const stats = this.renderStats.layerRenderTimes.get(layerName) || { count: 0, average: 0 };
-        stats.count++;
-        stats.average = (stats.average * (stats.count - 1) + renderTime) / stats.count;
-        this.renderStats.layerRenderTimes.set(layerName, stats);
-    }
 
     /**
      * Enable/disable a layer
@@ -218,12 +162,10 @@ class LayerManager {
     }
 
     /**
-     * Get rendering performance statistics
+     * Get basic layer information
      */
     getStats() {
         return {
-            ...this.renderStats,
-            fps: this.renderStats.totalFrames > 0 ? 1000 / this.renderStats.averageRenderTime : 0,
             layerCount: this.layers.size,
             enabledLayers: Array.from(this.layers.values()).filter(l => l.config.enabled).length
         };
@@ -263,8 +205,6 @@ class LayerManager {
 
         this.layers.clear();
         this.renderOrder = [];
-        this.renderQueue = [];
-        this.renderStats.layerRenderTimes.clear();
 
         console.log('LayerManager destroyed');
     }

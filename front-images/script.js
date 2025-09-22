@@ -249,9 +249,9 @@ async function initializePixiOverlay() {
         // createDebugMarkers();
 
         // Start foreground particle ticker
-        let last = performance.now() / 1000;
+        let last = performance.now() / app.STABLE_TIME;
         pixiApp.ticker.add(() => {
-            const now = performance.now() / 1000;
+            const now = performance.now() / app.STABLE_TIME;
             const dt = Math.min(now - last, 0.05);
             last = now;
             if (!fgPaused) updateFgParticles(dt);

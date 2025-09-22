@@ -703,18 +703,7 @@
 
         <div class="sidebar-content">
 
-            <div class="control-section">
-                <div class="section-title">Layers</div>
-                <div class="control-section">
-                    <label class="checkbox-group">
-                        <input type="checkbox" id="pixiMeshes" checked>
-                        <span class="checkbox-label">Building Sprite</span>
-                    </label>
-                    <label class="checkbox-group">
-                        <input type="checkbox" id="natureOverlay" checked>
-                        <span class="checkbox-label">Nature Overlay</span>
-                    </label>
-                </div>
+        
 
                 <div class="control-section">
                     <div class="section-title">Tracking Visualization</div>
@@ -817,15 +806,16 @@
     </script>
 
     <!-- Layer System -->
-    <script src="layers/BaseLayer.js"></script>
+    <script src="layers/LayerInterface.js"></script>
     <script src="layers/BackgroundLayer.js"></script>
-    <!-- BuildingLayer removed - using PixiSpriteLayer for building sprites --></script>
-    <script src="layers/NatureParticleSystem.js"></script>
+    <!-- BuildingLayer removed - using PixiSpriteLayer for building sprites -->
+    <!-- NatureParticleSystem merged into NatureLayer -->
     <script src="layers/NatureLayer.js"></script>
+    <script src="layers/VideoLayer.js"></script>
     <script src="layers/PixiSpriteLayer.js"></script>
     <script src="layers/LayerManager.js"></script>
 
     <!-- Main Application -->
-    <script src="segmentation.js"></script>
+    <script src="app.js"></script>
 </body>
 </html>

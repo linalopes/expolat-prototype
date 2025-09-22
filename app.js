@@ -1,6 +1,10 @@
-class PersonSegmentation {
+// Configuration constants
+const STABLE_TIME = 500; // ms - time to wait for pose stability before texture changes
+
+class ExperienceApp {
     constructor() {
-        this.video = document.getElementById('videoElement');
+        // Make constants available globally
+        window.STABLE_TIME = STABLE_TIME;
         this.canvas = document.getElementById('outputCanvas');
         this.ctx = this.canvas.getContext('2d', { willReadFrequently: true });
 
@@ -11,13 +15,13 @@ class PersonSegmentation {
         // Layer System
         this.layerManager = new LayerManager(this.canvas, this.overlayCanvas);
         this.backgroundLayer = null;
-        // buildingLayer removed - using PixiMeshLayer for building mesh
         this.natureLayer = null;
+        this.pixiSpriteLayer = null;
+        this.videoLayer = null;
 
-        this.segmenter = null;
-        this.poseDetector = null;
-        this.animationId = null;
+        // Data received from VideoLayer
         this.poses = [];
+        this.segmentationResults = null;
         this.lastPoseUpdate = 0;
 
         this.settings = {
@@ -49,7 +53,7 @@ class PersonSegmentation {
         this.personStableCounters = []; // Counter for state stability
         this.personOverlayImages = []; // Overlay image for each person
         this.STABLE_FRAMES = 12; // Number of frames to wait before considering a state stable
-
+        this.STABLE_TIME = 500; // Time in milliseconds to wait before considering a state stable
         // Shoulder sticker properties removed
 
         // Display controls
@@ -68,14 +72,10 @@ class PersonSegmentation {
 
     async init() {
         try {
-            await this.setupCamera();
-            await this.loadMediaPipe();
             await this.loadTextureConfig();
             await this.loadPoseMapping();
             this.setupLayers();
             this.setupControls();
-            // Shoulder sticker loading removed
-            this.startProcessing();
 
             // Hide status element completely - no video labels needed
             const statusEl = document.getElementById('status');
@@ -109,36 +109,48 @@ class PersonSegmentation {
             });
         } catch (error) {
             console.error('Initialization error:', error);
-            document.getElementById('status').innerHTML = '<span style="color: #ff6b6b;">Error: ' + error.message + '</span>';
+            const statusElement = document.getElementById('status');
+            if (statusElement) {
+                statusElement.innerHTML = '<span style="color: #ff6b6b;">Error: ' + error.message + '</span>';
+            }
         }
     }
 
-    async setupCamera() {
-        const stream = await navigator.mediaDevices.getUserMedia({
-            video: {
-                width: { ideal: 640 },
-                height: { ideal: 480 },
-                facingMode: 'user'
+
+    setupLayers() {
+        // Create and configure video layer (camera + MediaPipe)
+        this.videoLayer = new VideoLayer();
+
+        // Set up event listeners for video layer
+        this.videoLayer.on('camera-ready', (data) => {
+            console.log('Camera ready:', data);
+            // Update main canvas dimensions to match video
+            this.canvas.width = data.width;
+            this.canvas.height = data.height;
+            // Update overlay canvas dimensions to match video
+            this.overlayCanvas.width = data.width;
+            this.overlayCanvas.height = data.height;
+        });
+
+        this.videoLayer.on('segmentation-results', (data) => {
+            this.segmentationResults = data;
+            this.renderFrame();
+        });
+
+        this.videoLayer.on('pose-results', (data) => {
+            this.poses = data.poses;
+            this.detectPose();
+        });
+
+        this.videoLayer.on('error', (error) => {
+            console.error('VideoLayer error:', error);
+            const statusEl = document.getElementById('status');
+            if (statusEl) {
+                statusEl.innerHTML = `<span style="color: #ff6b6b;">Video Error: ${error.message}</span>`;
+                statusEl.style.display = 'block';
             }
         });
 
-        this.video.srcObject = stream;
-
-        return new Promise((resolve) => {
-            this.video.onloadedmetadata = () => {
-                this.canvas.width = this.video.videoWidth;
-                this.canvas.height = this.video.videoHeight;
-
-                // Set overlay canvas to same size
-                this.overlayCanvas.width = this.video.videoWidth;
-                this.overlayCanvas.height = this.video.videoHeight;
-
-                resolve();
-            };
-        });
-    }
-
-    setupLayers() {
         // Create and configure background layer (mountain cutout effect)
         this.backgroundLayer = new BackgroundLayer({
             mode: 'mountain_cutout',
@@ -146,8 +158,6 @@ class PersonSegmentation {
             backgroundColor: this.settings.backgroundColor,
             backgroundImage: 'bg-images/mountain.png'
         });
-
-        // BuildingLayer removed - PixiMeshLayer will show the building mesh
 
         // Create and configure nature layer
         this.natureLayer = new NatureLayer({
@@ -171,100 +181,25 @@ class PersonSegmentation {
         }
         console.log('PixiSpriteLayer created successfully:', !!this.pixiSpriteLayer);
 
-        // Add layers to manager (simplified to 3 layers)
-        this.layerManager.addLayer(this.backgroundLayer);
-        this.layerManager.addLayer(this.pixiSpriteLayer);
-        this.layerManager.addLayer(this.natureLayer);
+        // Add layers to manager
+        this.layerManager.addLayer(this.videoLayer);      // Base layer - provides video input
+        this.layerManager.addLayer(this.backgroundLayer);  // Segmentation and mountain backdrop
+        this.layerManager.addLayer(this.pixiSpriteLayer);  // Building sprites
+        this.layerManager.addLayer(this.natureLayer);      // Nature overlays and particles
 
-        console.log('Layer system initialized: Background (base), PixiSprite (building), Nature (overlays)');
+        console.log('Layer system initialized: Video (input), Background (segmentation), PixiSprite (building), Nature (overlays)');
     }
 
-    async loadMediaPipe() {
-        // Load Selfie Segmentation
-        const segScript = document.createElement('script');
-        segScript.src = 'https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js';
-        segScript.crossOrigin = 'anonymous';
-        document.head.appendChild(segScript);
-
-        // Load Pose Detection
-        const poseScript = document.createElement('script');
-        poseScript.src = 'https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js';
-        poseScript.crossOrigin = 'anonymous';
-        document.head.appendChild(poseScript);
-
-        await Promise.all([
-            new Promise((resolve) => { segScript.onload = resolve; }),
-            new Promise((resolve) => { poseScript.onload = resolve; })
-        ]);
-
-        // Initialize Selfie Segmentation
-        const segConfig = {
-            locateFile: (file) => {
-                return `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${file}`;
-            }
-        };
-
-        this.segmenter = new window.SelfieSegmentation(segConfig);
-        this.segmenter.setOptions({
-            modelSelection: 1,
-            selfieMode: true
-        });
-
-        this.segmenter.onResults(this.onSegmentationResults.bind(this));
-
-        // Initialize Pose Detection
-        const poseConfig = {
-            locateFile: (file) => {
-                return `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`;
-            }
-        };
-
-        this.poseDetector = new window.Pose(poseConfig);
-        this.poseDetector.setOptions({
-            modelComplexity: 1,
-            smoothLandmarks: true,
-            enableSegmentation: false,
-            smoothSegmentation: false,
-            minDetectionConfidence: 0.5,
-            minTrackingConfidence: 0.5,
-            selfieMode: true
-        });
-
-        this.poseDetector.onResults(this.onPoseResults.bind(this));
-    }
-
-    onSegmentationResults(results) {
-        this.segmentationResults = results;
-        this.renderFrame().catch((error) => {
-            console.warn('Render frame error:', error);
-        });
-    }
-
-    onPoseResults(results) {
-        this.poses = results.poseLandmarks ? [results] : [];
-        this.detectPose();
-
-        // Process multi-person shoulder stickers
-        // Shoulder stickers removed - using NatureLayer for overlays
-        if (false && this.poses && this.poses.length > 0) {
-            this.poses.forEach((pose, personIndex) => {
-                const detectedPose = this.analyzePersonPose([pose], 0);
-                this.processPersonStateChange(personIndex, detectedPose);
-            });
-        }
-
-        // Nature layer is handled by LayerManager now
-    }
 
     async renderFrame() {
         if (!this.segmentationResults) return;
 
-        const results = this.segmentationResults;
+        const videoData = this.segmentationResults;
 
         // Draw base image to canvas
         this.ctx.save();
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-        this.ctx.drawImage(results.image, 0, 0, this.canvas.width, this.canvas.height);
+        this.ctx.drawImage(videoData.image, 0, 0, this.canvas.width, this.canvas.height);
 
         // Get image data for layer processing
         const imageData = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
@@ -272,17 +207,17 @@ class PersonSegmentation {
 
         // Prepare input data for layers
         let maskData = null;
-        if (results.segmentationMask) {
+        if (videoData.segmentationMask) {
             const maskCanvas = document.createElement('canvas');
             maskCanvas.width = this.canvas.width;
             maskCanvas.height = this.canvas.height;
             const maskCtx = maskCanvas.getContext('2d', { willReadFrequently: true });
-            maskCtx.drawImage(results.segmentationMask, 0, 0, this.canvas.width, this.canvas.height);
+            maskCtx.drawImage(videoData.segmentationMask, 0, 0, this.canvas.width, this.canvas.height);
             maskData = maskCtx.getImageData(0, 0, this.canvas.width, this.canvas.height).data;
         }
 
         const layerInputData = {
-            originalImage: results.image,
+            originalImage: videoData.image,
             pixels: pixels,
             mask: maskData,
             poses: this.poses,
@@ -359,7 +294,7 @@ class PersonSegmentation {
         // Only update if pose has been stable for a bit
         const now = Date.now();
         if (detectedPose !== this.currentPose) {
-            if (now - this.lastPoseUpdate > 1000) { // 1 second stability
+            if (now - this.lastPoseUpdate > this.STABLE_TIME) { // 1 second stability
                 this.currentPose = detectedPose;
                 this.updateTextureForPose(detectedPose);
                 this.updateDebugDisplay(detectedPose); // Update debug display
@@ -951,22 +886,6 @@ class PersonSegmentation {
         return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
     }
 
-    startProcessing() {
-        const processFrame = async () => {
-            if (this.video.readyState >= 2) {
-                // Send frame to segmentation
-                if (this.segmenter) {
-                    await this.segmenter.send({ image: this.video });
-                }
-                // Only send to pose detector if detection is enabled
-                if (this.poseDetector && this.poseDetectionEnabled) {
-                    await this.poseDetector.send({ image: this.video });
-                }
-            }
-            this.animationId = requestAnimationFrame(processFrame);
-        };
-        processFrame();
-    }
 
     setupControls() {
         // Set background to white by default
@@ -1476,11 +1395,11 @@ class PersonSegmentation {
 
 
     stop() {
-        if (this.animationId) {
-            cancelAnimationFrame(this.animationId);
+        if (this.videoLayer) {
+            this.videoLayer.stopProcessing();
         }
-        if (this.video.srcObject) {
-            this.video.srcObject.getTracks().forEach(track => track.stop());
+        if (this.layerManager) {
+            this.layerManager.destroy();
         }
     }
 
@@ -1504,5 +1423,5 @@ class PersonSegmentation {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    window.personSegmentation = new PersonSegmentation();
+    window.experienceApp = new ExperienceApp();
 });

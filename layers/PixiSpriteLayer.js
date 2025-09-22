@@ -2,7 +2,7 @@
  * PixiJS Sprite Layer
  * Handles pose-responsive building sprites with texture switching
  */
-class PixiSpriteLayer extends BaseLayer {
+class PixiSpriteLayer extends LayerInterface {
     constructor(config = {}) {
         console.log('PixiSpriteLayer constructor called');
         super('pixiSprite', {
@@ -27,9 +27,9 @@ class PixiSpriteLayer extends BaseLayer {
 
         // Sprite configuration
         this.spriteConfig = {
-            width: 200,  // Sprite width
-            height: 200  // Sprite height
+            scaleFactor: 5  // Multiplier for shoulder width (higher = bigger sprites)
         };
+
 
         // Pose tracking for texture switching
         this.currentPoseType = null;
@@ -334,24 +334,24 @@ class PixiSpriteLayer extends BaseLayer {
 
         // If pose changed, start stability timer
         if (this.lastPoseType.get(spriteId) !== poseType) {
-            console.log(`⏱️ [${timestamp}] Pose change detected: "${this.lastPoseType.get(spriteId)}" → "${poseType}" - Starting 1000ms stability timer`);
+            console.log(`⏱️ [${timestamp}] Pose change detected: "${this.lastPoseType.get(spriteId)}" → "${poseType}" - Starting 500ms stability timer`);
             this.lastPoseType.set(spriteId, poseType);
             this.poseChangeTime = now;
             return; // Wait for pose to stabilize
         }
 
-        // Check if pose has been stable for at least 1000ms (1 second)
+        // Check if pose has been stable for at least 500ms (1 second)
         const poseStableTime = now - (this.poseChangeTime || 0);
-        if (poseStableTime < 1000) {
+        if (poseStableTime < window.STABLE_TIME) {
             // Log every 200ms to show progress
             if (Math.floor(poseStableTime / 200) !== Math.floor((poseStableTime - 16) / 200)) {
-                console.log(`⏳ [${timestamp}] Pose "${poseType}" stable for ${Math.floor(poseStableTime)}ms / 1000ms`);
+                console.log(`⏳ [${timestamp}] Pose "${poseType}" stable for ${Math.floor(poseStableTime)}ms / 500ms`);
             }
             return; // Pose not stable yet
         }
 
         // Prevent too rapid switching
-        if (timeSinceLastChange < 2000) {
+        if (timeSinceLastChange < window.STABLE_TIME) {
             return; // Don't switch too frequently
         }
 
@@ -362,33 +362,40 @@ class PixiSpriteLayer extends BaseLayer {
         // Handle sprite visibility based on texture availability
         if (sprite) {
             if (targetTexture) {
-                // Show sprite and update texture if needed
-                sprite.visible = true;
-
                 // Check if we need to change texture
                 const currentTexturePath = this.currentSpriteTextures.get(spriteId);
                 if (currentTexturePath !== targetTexture) {
                     console.log(`🔄 Switching from ${currentTexturePath} to ${poseType} texture: ${targetTexture}`);
+
                     this.currentSpriteTextures.set(spriteId, targetTexture);
                     this.lastTextureChange.set(spriteId, now);
 
-                    // Load and apply new texture
+                    // Load and apply new texture immediately
                     PIXI.Assets.load(targetTexture).then(newTexture => {
                         if (sprite instanceof PIXI.Sprite) {
                             sprite.texture = newTexture;
-                            // Keep sprite size consistent
-                            sprite.width = 200;
-                            sprite.height = 200;
+                            // Size is controlled by landmark-based scaling
+                            sprite.visible = true;
+                            sprite.alpha = 1.0;
                             console.log(`✅ Applied ${poseType} texture to sprite`);
                         }
                     }).catch(error => {
                         console.warn('Failed to load texture:', targetTexture, error);
+                        // Keep sprite visible with old texture if new one fails
+                        sprite.visible = true;
+                        sprite.alpha = 1.0;
                     });
+                } else {
+                    // Same texture, just ensure sprite is visible with full alpha
+                    sprite.visible = true;
+                    sprite.alpha = 1.0;
                 }
             } else {
-                // Hide sprite when no texture is available (empty variants)
-                sprite.visible = false;
-                console.log(`🚫 Hiding sprite for pose ${poseType} (no texture configured)`);
+                // Keep sprite visible even when no texture is configured
+                // This prevents sprites from disappearing during pose detection
+                sprite.visible = true;
+                sprite.alpha = 1.0;
+                console.log(`⚠️ No texture configured for pose ${poseType} - keeping sprite visible`);
             }
         }
     }
@@ -424,12 +431,20 @@ class PixiSpriteLayer extends BaseLayer {
             const centerY = (leftShoulder.y + rightShoulder.y) / 2;
             const shoulderWidth = Math.abs(rightShoulder.x - leftShoulder.x);
 
-            // Scale sprite to match shoulder width (with some multiplier for visual appeal)
-            // Buildings should be wider than just shoulders, so multiply by 1.5-2x
-            const targetSpriteWidth = shoulderWidth * 1.8; // Building is 1.8x shoulder width
+            // Scale sprite to match shoulder width using configurable factor
+            const targetSpriteWidth = shoulderWidth * this.spriteConfig.scaleFactor;
             const minWidth = 80;  // Minimum size for visibility
-            const maxWidth = 400; // Maximum size to prevent huge sprites
+            const maxWidth = 1000; // Maximum size to prevent huge sprites (increased for larger sprites)
             const clampedWidth = Math.max(minWidth, Math.min(maxWidth, targetSpriteWidth));
+
+            // Debug logging for scaling
+            console.log(`🔍 Sprite scaling debug:`, {
+                shoulderWidth: Math.round(shoulderWidth),
+                scaleFactor: this.spriteConfig.scaleFactor,
+                targetWidth: Math.round(targetSpriteWidth),
+                clampedWidth: Math.round(clampedWidth),
+                minWidth, maxWidth
+            });
 
 
             // Apply smoothing for stable positioning
@@ -588,24 +603,23 @@ class PixiSpriteLayer extends BaseLayer {
         try {
             console.log('🔧 Creating building sprite...');
 
-            // Create sprite with a default 1x1 transparent texture (no hardcoded image)
-            const emptyTexture = PIXI.Texture.WHITE; // Use built-in white texture as placeholder
+            // Create sprite with a transparent texture (no visible placeholder)
+            const emptyTexture = PIXI.Texture.EMPTY; // Use built-in transparent texture as placeholder
             const sprite = new PIXI.Sprite(emptyTexture);
 
             // Set anchor to center so sprite scales and positions from its center
             sprite.anchor.set(0.5, 0.5);
 
-            // Start with small size and center position for better debugging
+            // Start with center position for better debugging
             sprite.x = 400; // Center-ish position
             sprite.y = 300;
-            sprite.width = 100; // Force smaller initial size to see positioning clearly
-            sprite.height = 100;
+            // Size will be set by landmark-based scaling
 
-            // Initially invisible - will be made visible only when a valid texture is loaded
-            sprite.visible = false;
+            // Start visible with full alpha for immediate visibility
+            sprite.visible = true;
+            sprite.alpha = 1.0;
             sprite.renderable = true;
             sprite.cullable = false; // Prevent culling
-            sprite.alpha = 1.0; // Full opacity when visible
 
             // Add to stage
             this.pixiApp.stage.addChild(sprite);
@@ -645,6 +659,7 @@ class PixiSpriteLayer extends BaseLayer {
         // Don't hide landmarks - they are controlled by the Pose Landmarks checkbox
         // Landmarks should remain visible even when sprites are hidden
     }
+
 
     destroy() {
         if (this.pixiApp) {

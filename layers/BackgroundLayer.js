@@ -2,7 +2,7 @@
  * Background Layer
  * Handles background effects: blur, remove, replace, none
  */
-class BackgroundLayer extends BaseLayer {
+class BackgroundLayer extends LayerInterface {
     constructor(config = {}) {
         super('background', {
             mode: 'mountain_cutout', // 'blur', 'remove', 'replace', 'none', 'mountain_cutout'
@@ -10,8 +10,8 @@ class BackgroundLayer extends BaseLayer {
             backgroundImage: 'bg-images/mountain.png', // Default mountain backdrop
             backgroundColor: '#000000',
             confidenceThreshold: 0.7,
-            personTint: { r: 255, g: 255, b: 255, a: 0.8 }, // White tint for person
-            personOpacity: 0.6, // Overall opacity of the person layer (0.0-1.0)
+            personTint: { r: 255, g: 255, b: 255, a: 0.1 }, // Subtle white tint for person
+            personOpacity: 0.2, // Overall opacity of the person layer (0.0-1.0)
             zIndex: 1,
             ...config
         });

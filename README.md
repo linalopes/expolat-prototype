@@ -105,7 +105,7 @@ between-verses/
 ├── segmentation.js         # Main application logic
 ├── experience-config.json  # Pose and texture configuration
 ├── layers/                 # 3-Layer system components
-│   ├── BaseLayer.js        # Base layer class
+│   ├── LayerInterface.js   # Layer interface class
 │   ├── BackgroundLayer.js  # Layer 1: Background rendering
 │   ├── NatureLayer.js      # Layer 3: Nature scene overlays
 │   ├── PixiMeshLayer.js    # Layer 2: PixiJS building mesh

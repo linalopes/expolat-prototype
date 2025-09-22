@@ -5,8 +5,7 @@
       "description": "Both arms lifted up",
       "detection": {
         "handsAboveHead": true,
-        "handsCloseTogether": 0.3,
-        "stability": 1000
+        "handsCloseTogether": 0.3
       },
       "textures": {
         "building": {
@@ -41,8 +40,7 @@
       "description": "Arms stretched to the sides, closed legs",
       "detection": {
         "armsHorizontal": 0.1,
-        "armsExtended": 0.1,
-        "stability": 1000
+        "armsExtended": 0.1
       },
       "textures": {
         "building": {
@@ -77,8 +75,7 @@
       "description": "Strong warrior stance with wide legs and arms",
       "detection": {
         "wideStance": 0.15,
-        "armsPartiallyExtended": 0.2,
-        "stability": 1000
+        "armsPartiallyExtended": 0.2
       },
       "textures": {
         "building": {
@@ -127,7 +124,7 @@
     }
   },
   "settings": {
-    "poseHoldTime": 1000,
+    "poseHoldTime": 500,
     "showPoseKeypoints": false,
     "overlayEnabled": true,
     "overlayHeight": 0.33,
