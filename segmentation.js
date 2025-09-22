@@ -11,7 +11,7 @@ class PersonSegmentation {
         // Layer System
         this.layerManager = new LayerManager(this.canvas, this.overlayCanvas);
         this.backgroundLayer = null;
-        this.buildingLayer = null;
+        // buildingLayer removed - using PixiMeshLayer for building mesh
         this.natureLayer = null;
 
         this.segmenter = null;
@@ -43,15 +43,14 @@ class PersonSegmentation {
         this.poseDetectionEnabled = true;
 
         // Multi-person shoulder stickers
-        this.shoulderStickersEnabled = true;
+        // Shoulder stickers removed for simplified 3-layer system
         this.personStates = []; // Current state for each person
         this.personStableStates = []; // Stable state for each person
         this.personStableCounters = []; // Counter for state stability
         this.personOverlayImages = []; // Overlay image for each person
         this.STABLE_FRAMES = 12; // Number of frames to wait before considering a state stable
 
-        // Shoulder sticker images
-        this.shoulderStickerImages = new Map();
+        // Shoulder sticker properties removed
 
         // Display controls
         this.videoVisible = true;
@@ -79,7 +78,7 @@ class PersonSegmentation {
             await this.loadPoseMapping();
             this.setupLayers();
             this.setupControls();
-            this.loadShoulderStickerImages();
+            // Shoulder sticker loading removed
             this.startProcessing();
 
             // Hide status element completely - no video labels needed
@@ -151,13 +150,7 @@ class PersonSegmentation {
             backgroundColor: this.settings.backgroundColor
         });
 
-        // Create and configure building layer
-        this.buildingLayer = new BuildingLayer({
-            effectIntensity: this.settings.effectIntensity,
-            confidenceThreshold: this.settings.confidenceThreshold,
-            backgroundColor: this.settings.defaultBackgroundColor,
-            textureType: this.settings.buildingOverlayEnabled ? 'image' : 'none'
-        });
+        // BuildingLayer removed - PixiMeshLayer will show the building mesh
 
         // Create and configure nature layer
         this.natureLayer = new NatureLayer({
@@ -176,14 +169,12 @@ class PersonSegmentation {
         });
         console.log('PixiMeshLayer created successfully:', !!this.pixiMeshLayer);
 
-        // Add layers to manager
+        // Add layers to manager (simplified to 3 layers)
         this.layerManager.addLayer(this.backgroundLayer);
-        // Re-enable BuildingLayer alongside PixiJS mesh
-        this.layerManager.addLayer(this.buildingLayer);
-        this.layerManager.addLayer(this.natureLayer);
         this.layerManager.addLayer(this.pixiMeshLayer);
+        this.layerManager.addLayer(this.natureLayer);
 
-        console.log('Layer system initialized: Background, Building, Nature, PixiMesh layers');
+        console.log('Layer system initialized: Background (base), PixiMesh (building), Nature (overlays)');
     }
 
     async loadMediaPipe() {
@@ -252,7 +243,8 @@ class PersonSegmentation {
         this.detectPose();
 
         // Process multi-person shoulder stickers
-        if (this.shoulderStickersEnabled && this.poses && this.poses.length > 0) {
+        // Shoulder stickers removed - using NatureLayer for overlays
+        if (false && this.poses && this.poses.length > 0) {
             this.poses.forEach((pose, personIndex) => {
                 const detectedPose = this.analyzePersonPose([pose], 0);
                 this.processPersonStateChange(personIndex, detectedPose);
@@ -303,10 +295,11 @@ class PersonSegmentation {
         this.ctx.putImageData(imageData, 0, 0);
 
         // Draw shoulder stickers for each person
-        if (this.shoulderStickersEnabled && this.poses && this.poses.length > 0) {
+        // Shoulder stickers removed - using NatureLayer for overlays
+        if (false && this.poses && this.poses.length > 0) {
             this.poses.forEach((pose, personIndex) => {
                 if (pose.poseLandmarks) {
-                    this.drawPersonShoulderSticker({ keypoints: this.convertLandmarksToKeypoints(pose.poseLandmarks) }, personIndex);
+                    // Shoulder sticker drawing removed
                 }
             });
         }
@@ -367,6 +360,7 @@ class PersonSegmentation {
             if (now - this.lastPoseUpdate > 1000) { // 1 second stability
                 this.currentPose = detectedPose;
                 this.updateTextureForPose(detectedPose);
+                this.updateDebugDisplay(detectedPose); // Update debug display
                 this.lastPoseUpdate = now;
             }
         } else {
@@ -429,9 +423,16 @@ class PersonSegmentation {
 
     updateTextureForPose(poseName) {
         console.log(`Updating texture for pose: ${poseName}`);
+        console.log(`🔧 Debug - poseMapping:`, !!this.poseMapping);
+        console.log(`🔧 Debug - poseMapping.poses:`, !!this.poseMapping?.poses);
+        console.log(`🔧 Debug - available poses:`, Object.keys(this.poseMapping?.poses || {}));
 
         if (!this.poseMapping || !this.poseMapping.poses[poseName]) {
             console.warn(`Pose "${poseName}" not found in mapping`);
+            console.warn(`🔧 poseMapping state:`, {
+                exists: !!this.poseMapping,
+                poses: this.poseMapping?.poses ? Object.keys(this.poseMapping.poses) : 'none'
+            });
             // For unknown poses, ensure we still have an overlay
             if (!this.currentOverlay) {
                 this.currentOverlay = {
@@ -468,7 +469,7 @@ class PersonSegmentation {
 
             if (textureFile) {
                 this.currentTexture = `images/${textureFile}`;
-                this.buildingLayer.setTexture(this.currentTexture, 'image');
+                // Building texture now handled by PixiMeshLayer
                 console.log(`Building texture set to: ${textureFile}`);
 
                 // Update debug display
@@ -477,7 +478,7 @@ class PersonSegmentation {
             }
         } else if (!this.settings.buildingOverlayEnabled) {
             // Clear building textures if building overlay is disabled
-            this.buildingLayer.updateConfig({ textureType: 'none' });
+            // Building layer removed
             this.currentTexture = null;
 
             // Update debug display
@@ -969,25 +970,7 @@ class PersonSegmentation {
         this.settings.backgroundColor = '#ffffff';
         this.backgroundLayer.setBackgroundColor(this.settings.backgroundColor);
 
-        // Building overlay checkbox
-        const buildingOverlayCheckbox = document.getElementById('buildingOverlay');
-        if (buildingOverlayCheckbox) {
-            // Set initial state
-            buildingOverlayCheckbox.checked = this.settings.buildingOverlayEnabled;
-
-            buildingOverlayCheckbox.addEventListener('change', () => {
-                this.settings.buildingOverlayEnabled = buildingOverlayCheckbox.checked;
-
-                if (this.settings.buildingOverlayEnabled) {
-                    // Enable texture on building layer
-                    this.buildingLayer.updateConfig({ textureType: 'image' });
-                } else {
-                    // Disable texture on building layer
-                    this.buildingLayer.updateConfig({ textureType: 'none' });
-                }
-                console.log('Building overlay enabled:', this.settings.buildingOverlayEnabled);
-            });
-        }
+        // Building overlay control removed - now handled by pixiMeshes control
 
 
         // Settings are now loaded from config, no sliders needed
@@ -1034,22 +1017,7 @@ class PersonSegmentation {
             });
         }
 
-        // Shoulder stickers checkbox
-        const shoulderStickersCheckbox = document.getElementById('shoulderStickers');
-        if (shoulderStickersCheckbox) {
-            // Set initial state
-            shoulderStickersCheckbox.checked = this.shoulderStickersEnabled;
-
-            shoulderStickersCheckbox.addEventListener('change', () => {
-                this.shoulderStickersEnabled = shoulderStickersCheckbox.checked;
-                console.log('Shoulder stickers enabled:', this.shoulderStickersEnabled);
-
-                // Clear person overlays when disabled
-                if (!this.shoulderStickersEnabled) {
-                    this.personOverlayImages.fill(null);
-                }
-            });
-        }
+        // Shoulder stickers control removed
 
         // PixiJS meshes checkbox
         const pixiMeshesCheckbox = document.getElementById('pixiMeshes');
@@ -1162,21 +1130,27 @@ class PersonSegmentation {
             });
         }
 
-        // Mesh wireframe checkbox
-        const meshWireframeCheckbox = document.getElementById('meshWireframe');
-        if (meshWireframeCheckbox) {
-            meshWireframeCheckbox.addEventListener('change', () => {
-                this.toggleMeshWireframe(meshWireframeCheckbox.checked);
-            });
-        }
+        // Mesh wireframe control removed
     }
 
     async loadTextureConfig() {
         try {
+            console.log('🔧 Loading experience-config.json...');
             const response = await fetch('experience-config.json');
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
             const config = await response.json();
             this.textureConfig = config;
             this.poseMapping = config; // Same config file contains both
+
+            console.log('✅ Config loaded successfully:', {
+                posesFound: Object.keys(config.poses || {}),
+                configHasPoses: !!config.poses,
+                poseMapping: !!this.poseMapping
+            });
 
             // Load settings from config
             if (config.settings) {
@@ -1186,7 +1160,7 @@ class PersonSegmentation {
             }
         } catch (error) {
             console.error('Failed to load experience config:', error);
-            // Fallback to default configuration
+            // Fallback to default configuration with proper poses
             this.textureConfig = {
                 textures: {
                     nature: [
@@ -1195,7 +1169,32 @@ class PersonSegmentation {
                     ],
                     buildings: []
                 },
-                poses: {},
+                poses: {
+                    mountain: {
+                        name: "Arms Up",
+                        textures: {
+                            building: { variants: ["prime.png"] }
+                        }
+                    },
+                    jesus: {
+                        name: "Arms Sides",
+                        textures: {
+                            building: { variants: ["cristoredentor.png"] }
+                        }
+                    },
+                    warrior: {
+                        name: "Warrior",
+                        textures: {
+                            building: { variants: ["cristoredentor.png"] }
+                        }
+                    },
+                    neutral: {
+                        name: "Neutral",
+                        textures: {
+                            building: { variants: ["neutral.png"] }
+                        }
+                    }
+                },
                 settings: {}
             };
             this.poseMapping = this.textureConfig;
@@ -1244,197 +1243,7 @@ class PersonSegmentation {
         }
     }
 
-    // Multi-person shoulder sticker methods
-    async loadShoulderStickerImages() {
-        // Load all sticker image variants
-        const allStickerImages = [
-            'prime.svg', 'cristoredentor.png'
-        ];
-
-        const imagePromises = allStickerImages.map(filename => {
-            return new Promise((resolve) => {
-                const img = new Image();
-                img.crossOrigin = 'anonymous';
-                img.onload = () => resolve({ filename, img });
-                img.onerror = () => resolve({ filename, img: null });
-                img.src = `images/${filename}`;
-            });
-        });
-
-        const results = await Promise.all(imagePromises);
-        let loadedCount = 0;
-
-        results.forEach(({ filename, img }) => {
-            if (img) {
-                this.shoulderStickerImages.set(filename, img);
-                loadedCount++;
-                console.log(`✓ Loaded shoulder sticker variant: ${filename}`);
-            } else {
-                console.warn(`Failed to load shoulder sticker: ${filename}`);
-            }
-        });
-
-        console.log(`✓ Loaded ${loadedCount}/${allStickerImages.length} shoulder sticker variants`);
-    }
-
-    analyzePersonPose(poses, personIndex) {
-        if (!poses || poses.length <= personIndex) return 'unknown';
-
-        const pose = poses[personIndex];
-        if (!pose || !pose.keypoints) return 'unknown';
-
-        // Get key landmarks for pose detection
-        const leftShoulder = pose.keypoints.find(kp => kp.name === 'left_shoulder');
-        const rightShoulder = pose.keypoints.find(kp => kp.name === 'right_shoulder');
-        const leftWrist = pose.keypoints.find(kp => kp.name === 'left_wrist');
-        const rightWrist = pose.keypoints.find(kp => kp.name === 'right_wrist');
-        const nose = pose.keypoints.find(kp => kp.name === 'nose');
-
-        if (!leftShoulder || !rightShoulder || !leftWrist || !rightWrist || !nose) {
-            return 'unknown';
-        }
-
-        // Check confidence levels
-        const minConfidence = 0.3;
-        if (leftShoulder.score < minConfidence || rightShoulder.score < minConfidence ||
-            leftWrist.score < minConfidence || rightWrist.score < minConfidence ||
-            nose.score < minConfidence) {
-            return 'unknown';
-        }
-
-        // Cristo Redentor pose: arms extended horizontally
-        const leftArmHorizontal = Math.abs(leftWrist.y - leftShoulder.y) < 50;
-        const rightArmHorizontal = Math.abs(rightWrist.y - rightShoulder.y) < 50;
-        const armsExtended = (leftWrist.x < leftShoulder.x - 80) && (rightWrist.x > rightShoulder.x + 80);
-
-        if (leftArmHorizontal && rightArmHorizontal && armsExtended) {
-            return 'cristo';
-        }
-
-        // Prime Tower pose: both hands on top of head
-        const handsAboveHead = leftWrist.y < nose.y - 50 && rightWrist.y < nose.y - 50;
-        const handsClose = Math.abs(leftWrist.x - rightWrist.x) < 100;
-        const handsCentered = Math.abs((leftWrist.x + rightWrist.x) / 2 - nose.x) < 60;
-
-        if (handsAboveHead && handsClose && handsCentered) {
-            return 'prime';
-        }
-
-        return 'unknown';
-    }
-
-    resizePersonArrays(newSize) {
-        while (this.personStates.length < newSize) {
-            this.personStates.push('unknown');
-            this.personStableStates.push('unknown');
-            this.personStableCounters.push(0);
-            this.personOverlayImages.push(null);
-        }
-
-        // Trim arrays if needed
-        this.personStates.splice(newSize);
-        this.personStableStates.splice(newSize);
-        this.personStableCounters.splice(newSize);
-        this.personOverlayImages.splice(newSize);
-    }
-
-    processPersonStateChange(personIndex, detectedPose) {
-        // Initialize if needed
-        this.resizePersonArrays(personIndex + 1);
-
-        const currentState = this.personStates[personIndex];
-
-        if (detectedPose === currentState) {
-            this.personStableCounters[personIndex]++;
-        } else {
-            this.personStableCounters[personIndex] = 0;
-            this.personStates[personIndex] = detectedPose;
-        }
-
-        // Check if pose is stable
-        if (this.personStableCounters[personIndex] >= this.STABLE_FRAMES &&
-            this.personStableStates[personIndex] !== detectedPose) {
-
-            this.personStableStates[personIndex] = detectedPose;
-
-            // Select new sticker image for this person
-            if (detectedPose !== 'unknown') {
-                this.selectStickerImageFor(personIndex, detectedPose);
-                console.log(`Person ${personIndex + 1} stable pose: ${detectedPose}`);
-            } else {
-                this.personOverlayImages[personIndex] = null;
-            }
-        }
-    }
-
-    selectStickerImageFor(personIndex, poseType) {
-        // Map pose types to image files with multiple variants
-        const poseImageMap = {
-            'prime': ['prime.svg', 'prime-tower.svg', 'tower-icon.svg'],
-            'cristo': ['cristo.svg', 'cristoredentor.svg', 'cristoredentor.svg']
-        };
-
-        const availableImages = poseImageMap[poseType];
-        if (!availableImages || availableImages.length === 0) {
-            this.personOverlayImages[personIndex] = null;
-            return;
-        }
-
-        // Select random image from available options
-        const selectedImage = availableImages[Math.floor(Math.random() * availableImages.length)];
-        const img = this.shoulderStickerImages.get(selectedImage);
-
-        if (img) {
-            this.personOverlayImages[personIndex] = img;
-            console.log(`Person ${personIndex + 1} assigned sticker variant: ${selectedImage} (${availableImages.indexOf(selectedImage) + 1}/${availableImages.length})`);
-        } else {
-            this.personOverlayImages[personIndex] = null;
-            console.warn(`Sticker image not found for person ${personIndex + 1}: ${selectedImage}`);
-        }
-    }
-
-    drawPersonShoulderSticker(pose, personIndex) {
-        if (!this.shoulderStickersEnabled || !this.personOverlayImages[personIndex]) {
-            return;
-        }
-
-        const leftShoulder = pose.keypoints.find(kp => kp.name === 'left_shoulder');
-        const rightShoulder = pose.keypoints.find(kp => kp.name === 'right_shoulder');
-
-        if (!leftShoulder || !rightShoulder ||
-            leftShoulder.score < 0.3 || rightShoulder.score < 0.3) {
-            return;
-        }
-
-        // Calculate shoulder center and sticker dimensions
-        const centerX = (leftShoulder.x + rightShoulder.x) / 2;
-        const centerY = (leftShoulder.y + rightShoulder.y) / 2;
-        const shoulderDistance = Math.abs(rightShoulder.x - leftShoulder.x);
-        const stickerSize = Math.max(shoulderDistance * 1.2, 60);
-
-        // Draw the sticker
-        this.ctx.save();
-        this.ctx.globalAlpha = 0.9;
-        this.ctx.drawImage(
-            this.personOverlayImages[personIndex],
-            centerX - stickerSize / 2,
-            centerY - stickerSize / 2,
-            stickerSize,
-            stickerSize
-        );
-        this.ctx.restore();
-    }
-
-    convertLandmarksToKeypoints(landmarks) {
-        // Convert MediaPipe landmarks to format expected by shoulder sticker function
-        return [
-            { name: 'nose', x: landmarks[0].x * this.canvas.width, y: landmarks[0].y * this.canvas.height, score: landmarks[0].visibility },
-            { name: 'left_shoulder', x: landmarks[11].x * this.canvas.width, y: landmarks[11].y * this.canvas.height, score: landmarks[11].visibility },
-            { name: 'right_shoulder', x: landmarks[12].x * this.canvas.width, y: landmarks[12].y * this.canvas.height, score: landmarks[12].visibility },
-            { name: 'left_wrist', x: landmarks[15].x * this.canvas.width, y: landmarks[15].y * this.canvas.height, score: landmarks[15].visibility },
-            { name: 'right_wrist', x: landmarks[16].x * this.canvas.width, y: landmarks[16].y * this.canvas.height, score: landmarks[16].visibility }
-        ];
-    }
+    // Shoulder sticker methods removed for simplified 3-layer system
 
     // Display control methods
     toggleFullscreen() {

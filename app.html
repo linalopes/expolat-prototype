@@ -707,16 +707,12 @@
                 <div class="section-title">Layers</div>
                 <div class="control-section">
                     <label class="checkbox-group">
-                        <input type="checkbox" id="buildingOverlay" checked>
-                        <span class="checkbox-label">Building Overlay</span>
+                        <input type="checkbox" id="pixiMeshes" checked>
+                        <span class="checkbox-label">Building Mesh</span>
                     </label>
                     <label class="checkbox-group">
                         <input type="checkbox" id="natureOverlay" checked>
                         <span class="checkbox-label">Nature Overlay</span>
-                    </label>
-                    <label class="checkbox-group">
-                        <input type="checkbox" id="pixiMeshes" checked>
-                        <span class="checkbox-label">Digital Clothing</span>
                     </label>
                 </div>
 
@@ -730,14 +726,7 @@
                         <input type="checkbox" id="poseLandmarks" checked>
                         <span class="checkbox-label">Pose Landmarks</span>
                     </label>
-                    <label class="checkbox-group">
-                        <input type="checkbox" id="meshWireframe">
-                        <span class="checkbox-label">Mesh Wireframe</span>
-                    </label>
-                    <label class="checkbox-group">
-                        <input type="checkbox" id="shoulderStickers" checked>
-                        <span class="checkbox-label">Shoulder Stickers</span>
-                    </label>
+                    <!-- Mesh wireframe and shoulder stickers controls removed -->
                 </div>
 
             <div class="control-section">
@@ -794,7 +783,7 @@
     <!-- Layer System -->
     <script src="layers/BaseLayer.js"></script>
     <script src="layers/BackgroundLayer.js"></script>
-    <script src="layers/BuildingLayer.js"></script>
+    <!-- BuildingLayer removed - using PixiMeshLayer for building mesh --></script>
     <script src="layers/NatureLayer.js"></script>
     <script src="layers/PixiMeshLayer.js"></script>
     <script src="layers/LayerManager.js"></script>

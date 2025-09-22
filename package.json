@@ -1,0 +1,15 @@
+{
+  "name": "expolat-prototype",
+  "version": "1.0.0",
+  "description": "Interactive pose detection with 3-layer rendering: Background, PixiJS building mesh, Nature overlays",
+  "scripts": {
+    "start": "python3 -m http.server 8000"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  },
+  "devDependencies": {},
+  "keywords": ["pose-detection", "mesh-deformation", "digital-clothing", "pixijs"],
+  "author": "",
+  "license": "MIT"
+}

@@ -1,34 +1,40 @@
-# Expolat Prototype
+# Between Verses
 
-An interactive multi-person pose detection game that displays overlay stickers when players strike specific poses. Built with p5.js and ml5.js for real-time body tracking.
+An interactive pose detection experience with a simplified 3-layer rendering system: Background, PixiJS building mesh, and Nature overlays. Features real-time pose detection with MediaPipe integration.
 
 ## Overview
 
-Strike one of two poses and watch as overlay stickers appear anchored to your shoulders:
+The system uses a clean 3-layer architecture:
 
-- **Prime Tower Pose**: Both hands on top of your head, close together
-- **Jesus Pose**: Arms extended horizontally to the sides (open arms)
+1. **Background Layer** - Solid background canvas
+2. **PixiJS Mesh Layer** - Building mesh that deforms with pose (shows prime.png texture)
+3. **Nature Layer** - Pose-responsive nature overlays on top
 
-The system supports **multiple people simultaneously**, with each person getting their own individual sticker overlay.
+**Pose Detection:**
+- **Prime Tower**: Hands on head → shows building mesh
+- **Cristo Redentor**: Arms extended → shows building mesh
+- **Mountain/Warrior**: Various poses → triggers nature overlays (aletsch.png, iguazu.png, pantanal.png)
 
 ## ✨ Features
 
-- **Multi-Person Support**: Track and overlay stickers for multiple people at once
-- **Real-time Pose Detection**: Uses ml5.js for accurate body pose tracking
-- **Local Image Overlays**: Uses pre-generated images from the `generated/` folder
-- **Shoulder-Anchored Stickers**: Stickers are positioned and scaled relative to shoulder width
+- **3-Layer Architecture**: Clean separation of Background, PixiJS Mesh, and Nature layers
+- **Real-time Pose Detection**: MediaPipe integration for accurate body tracking
+- **Mesh Deformation**: PixiJS v8 mesh with vertex manipulation based on pose landmarks
+- **Building Mesh**: Always-visible building mesh that responds to poses
+- **Nature Overlays**: Bottom-third nature scene overlays triggered by specific poses
+- **Simplified Controls**: Toggle building mesh and nature overlays independently
 - **Fullscreen Mode**: Immersive experience with ESC key to exit
-- **Video Toggle**: Hide video feed to show only pose tracking
-- **Tracking Toggle**: Hide/show skeleton lines and keypoints for clean interface
-- **Responsive Design**: Works on different screen sizes
-- **Per-Person State Management**: Individual pose tracking and debouncing for each person
+- **Video Toggle**: Hide video feed to show only layers
+- **Debug Interface**: Real-time pose state and mesh information display
+- **Responsive Design**: Adaptive scaling for different screen sizes
 
 ## 🛠️ Tech Stack
 
-- **Frontend**: HTML5, CSS3, JavaScript (p5.js, ml5.js)
-- **Pose Detection**: ml5.js Body Pose model
+- **Frontend**: HTML5, CSS3, JavaScript
+- **Rendering**: PixiJS v8 for mesh layer, Canvas2D for other layers
+- **Pose Detection**: MediaPipe via CDN integration
 - **Styling**: Bootstrap 5 with custom CSS
-- **Local Images**: PNG files stored in `generated/` folder
+- **Images**: PNG/SVG files stored in `images/` folder
 
 ## 📋 Prerequisites
 
@@ -78,34 +84,41 @@ Navigate to `http://localhost:8000` in your browser and allow camera access.
 - Arms are spread horizontally (wrists to the sides of shoulders)
 - Arms are roughly horizontal (elbow and wrist at similar heights)
 
-## 🏗️ Multi-Person Architecture
+## 🏗️ Architecture Overview
 
-### Per-Person State Management
-- **Individual Arrays**: Each person has their own state tracking
-- **Debouncing**: 12-frame stability check per person
-- **Independent Stickers**: Each person gets their own overlay image
-- **Dynamic Scaling**: Arrays resize automatically based on detected people
+### 3-Layer Rendering System
+- **Layer 1 - Background**: Solid color background canvas
+- **Layer 2 - PixiJS Mesh**: Building mesh with pose-based deformation
+- **Layer 3 - Nature**: Bottom-third nature overlays triggered by specific poses
 
-### Sticker Placement System
-- **Shoulder Anchoring**: Stickers positioned at midpoint between shoulders
-- **Proportional Scaling**: Sticker size = 1.8 × shoulder width
-- **Confidence Checking**: Only draws when shoulder keypoints are reliable (>0.3)
-- **Individual Layers**: Each person's sticker is drawn independently
+### Pose Detection System
+- **MediaPipe Integration**: Real-time pose landmark detection
+- **Stability Checking**: 12-frame debouncing for reliable pose recognition
+- **Layer Coordination**: Seamless communication between pose detection and rendering layers
 
 ## 📁 Project Structure
 
 ```
-expolat/
-├── index.html              # Main HTML file
-├── script.js               # p5.js and ml5.js logic
-├── styles.css              # Custom styling
-├── generated/              # Local overlay images
-│   ├── Jesus_1.png         # Jesus pose sticker
-│   └── Prime_1.png         # Prime Tower pose sticker
-├── jesus.svg               # Jesus pose instruction icon
-├── prime.svg               # Prime Tower pose instruction icon
-├── favicon.png             # Website icon
-├── .gitignore              # Git ignore rules
+between-verses/
+├── index.html              # Landing page
+├── app.html                # Main application
+├── segmentation.js         # Main application logic
+├── experience-config.json  # Pose and texture configuration
+├── layers/                 # 3-Layer system components
+│   ├── BaseLayer.js        # Base layer class
+│   ├── BackgroundLayer.js  # Layer 1: Background rendering
+│   ├── NatureLayer.js      # Layer 3: Nature scene overlays
+│   ├── PixiMeshLayer.js    # Layer 2: PixiJS building mesh
+│   └── LayerManager.js     # Layer coordination
+├── images/                 # Texture and overlay images
+│   ├── prime.png           # Building mesh texture
+│   ├── prime.svg           # Prime pose icon
+│   ├── cristoredentor.png  # Cristo pose icon
+│   ├── aletsch.png         # Alpine nature overlay
+│   ├── iguazu.png          # Waterfall nature overlay
+│   ├── pantanal.png        # Wetland nature overlay
+│   └── neutral.png         # Neutral state texture
+├── package.json            # Project configuration
 └── README.md               # This file
 ```
 
@@ -117,10 +130,10 @@ expolat/
 - **Keypoint Tracking**: Wrists, elbows, shoulders, nose
 - **Stability Frames**: 12 frames for pose confirmation
 
-### Sticker System
-- **Scale Factor**: 1.8 × shoulder width
-- **Anchor Point**: Midpoint between left and right shoulders
-- **Image Format**: PNG with transparency support
+### Layer Configuration
+- **Background**: Solid white background (#ffffff)
+- **Building Mesh**: 6x6 grid mesh with prime.png texture
+- **Nature Overlays**: Bottom-third overlays with configurable opacity and blend modes
 
 ## 🐛 Troubleshooting
 
@@ -137,23 +150,26 @@ expolat/
 - Stand 2-3 feet from camera
 - Make sure both shoulders are visible
 
-**Stickers not appearing:**
-- Check that images exist in `generated/` folder
-- Ensure pose is held steady for 12 frames
-- Verify shoulder keypoints have good confidence (>0.3)
+**Building mesh not appearing:**
+- Check that images exist in `images/` folder
+- Verify PixiJS loaded correctly (check console)
+- Ensure "Building Mesh" checkbox is enabled
 
-**Multiple people not working:**
-- Ensure each person is fully visible in frame
-- Check that people don't overlap too much
-- Try adjusting camera distance
+**Nature overlays not working:**
+- Check pose detection is working (see debug info)
+- Ensure "Nature Overlay" checkbox is enabled
+- Verify pose is held steady for stability frames
 
 ## 🎮 Controls Reference
 
-| Button | Function |
-|--------|----------|
+| Control | Function |
+|---------|----------|
+| **Building Mesh** | Toggle PixiJS building mesh visibility |
+| **Nature Overlay** | Toggle nature overlays (bottom third) |
+| **Pose Skeleton** | Toggle skeleton lines |
+| **Pose Landmarks** | Toggle landmark dots |
 | **Fullscreen** | Enter/exit fullscreen mode |
 | **Hide Video** | Toggle video feed visibility |
-| **Hide Tracking** | Toggle skeleton lines and keypoints |
 | **ESC Key** | Exit fullscreen mode |
 
 ## 🔒 Security Notes

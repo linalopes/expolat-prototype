@@ -23,13 +23,28 @@ class PixiMeshLayer extends BaseLayer {
         this.maxFPS = 30; // Limit animation FPS for performance
         this.lastUpdateTime = 0;
 
-        // Mesh configuration
+        // Mesh configuration - matching main branch's 6x6 grid
         this.meshConfig = {
-            rows: 4,    // Number of vertex rows
-            cols: 4,    // Number of vertex columns
-            width: 300, // Larger mesh width for better visibility
-            height: 400 // Larger mesh height for better visibility
+            rows: 6,    // Number of vertex rows (matching main branch)
+            cols: 6,    // Number of vertex columns (matching main branch)
+            width: 300, // Mesh width
+            height: 400 // Mesh height
         };
+
+        // Pose-to-mesh vertex mapping from main branch
+        // In a 6x6 grid (0-indexed), vertices are numbered row by row
+        // Row 0: vertices 0-5, Row 1: vertices 6-11, Row 2: vertices 12-17, etc.
+        this.POSE_VERTEX_MAP = {
+            left_shoulder: 14,   // Row 2, Col 2 (2*6 + 2 = 14)
+            right_shoulder: 15,  // Row 2, Col 3 (2*6 + 3 = 15)
+            left_hip: 26,        // Row 4, Col 2 (4*6 + 2 = 26)
+            right_hip: 27        // Row 4, Col 3 (4*6 + 3 = 27)
+        };
+
+        // Smoothing constants from main branch
+        this.SMOOTHING_FACTOR = 0.25; // Lerp factor for jitter reduction
+        this.DEAD_ZONE_PX = 0.4;      // px threshold for changes
+        this.lastVertexPositions = new Map(); // Cache for smoothing
 
         // Disable wireframe to see textures clearly
         this.config = this.config || {};
@@ -147,7 +162,7 @@ class PixiMeshLayer extends BaseLayer {
                 this.lastLoggedPoseType = poseType;
             }
 
-            // Apply pose effects and texture switching
+            // Apply pose effects (mesh scaling/positioning only)
             this.applyPoseEffects('test', poseType, timestamp);
         }
 
@@ -177,6 +192,9 @@ class PixiMeshLayer extends BaseLayer {
         // Process pose data for mesh animation
         if (inputData.poses && inputData.poses.length > 0) {
             this.updateMeshesFromPoses(inputData.poses, timestamp);
+        } else if (inputData.poseLandmarks) {
+            // Handle direct landmark data from segmentation.js
+            this.updateMeshFromLandmarks('test', inputData.poseLandmarks);
         }
 
         // Clear debug graphics and redraw
@@ -216,7 +234,6 @@ class PixiMeshLayer extends BaseLayer {
 
     updateMeshesFromPoses(poses, timestamp) {
         if (!poses || poses.length === 0) {
-            console.log('No poses detected');
             return;
         }
 
@@ -286,8 +303,12 @@ class PixiMeshLayer extends BaseLayer {
         const mesh = this.meshes.get(meshId);
         if (!mesh) return;
 
-        // Check if we need to change texture based on pose
-        this.updateMeshTextureForPose(meshId, poseType);
+        // Only update scaling if pose type actually changed
+        if (!this.currentPoseType || this.currentPoseType !== poseType) {
+            console.log(`Pose changed: ${this.currentPoseType} → ${poseType}`);
+            this.currentPoseType = poseType;
+            // Texture switching removed - PixiMeshLayer just shows building mesh
+        }
 
         // Apply pose-responsive scaling and positioning
         this.updateMeshSizeAndPosition(mesh, poseType, timestamp);
@@ -333,7 +354,8 @@ class PixiMeshLayer extends BaseLayer {
         mesh.scale.set(scaleX, scaleY);
     }
 
-    updateMeshTextureForPose(meshId, poseType) {
+    // Texture switching removed - PixiMeshLayer just shows building mesh
+    updateMeshTextureForPose_DISABLED(meshId, poseType) {
         const timestamp = new Date().toLocaleTimeString();
 
         // Initialize tracking objects if needed
@@ -376,11 +398,25 @@ class PixiMeshLayer extends BaseLayer {
             'tree': 'images/prime.png',           // Tree pose -> Prime Tower
             'warrior': 'images/cristoredentor.png', // Warrior -> Cristo Redentor
             'Warrior': 'images/cristoredentor.png', // Capitalized Warrior -> Cristo Redentor
-            'neutral': 'images/neutral.png'       // Default pose
+            'neutral': null                        // Hide mesh for neutral
         };
 
-        const targetTexture = poseTextures[poseType] || poseTextures['neutral'];
+        const targetTexture = poseTextures[poseType];
         const mesh = this.meshes.get(meshId);
+
+        // Hide mesh if neutral pose
+        if (targetTexture === null) {
+            if (mesh) {
+                mesh.visible = false;
+                console.log(`🚫 Hiding mesh for neutral pose`);
+            }
+            return;
+        } else {
+            if (mesh) {
+                mesh.visible = true;
+                console.log(`✅ Showing mesh for pose: ${poseType}`);
+            }
+        }
 
         // Only update if texture actually changed for this mesh
         if (this.currentMeshTextures.get(meshId) !== targetTexture) {
@@ -397,14 +433,12 @@ class PixiMeshLayer extends BaseLayer {
 
     updateMeshFromLandmarks(meshId, landmarks) {
         const mesh = this.meshes.get(meshId);
-        const landmarkMapping = this.landmarkMappings.get(meshId);
 
-        if (!mesh || !landmarkMapping) {
+        if (!mesh) {
             // Only log once when mesh is missing
             if (!this.meshMissingLogged) {
-                console.log('Mesh or landmark mapping not found for', meshId);
+                console.log('Mesh not found for', meshId);
                 console.log('Available meshes:', Array.from(this.meshes.keys()));
-                console.log('Available landmark mappings:', Array.from(this.landmarkMappings.keys()));
                 this.meshMissingLogged = true;
             }
             return;
@@ -421,45 +455,64 @@ class PixiMeshLayer extends BaseLayer {
             return;
         }
 
-        // Try simple mesh deformation approach for PixiJS 8.x
+        // Position and scale mesh based on pose (like main branch)
         try {
-            // Apply simple scaling and rotation effects based on landmarks
-            const nose = this.landmarkToPixi(landmarks[0]);
+            // Get key landmarks
             const leftShoulder = this.landmarkToPixi(landmarks[11]);
             const rightShoulder = this.landmarkToPixi(landmarks[12]);
+            const leftHip = this.landmarkToPixi(landmarks[23]);
+            const rightHip = this.landmarkToPixi(landmarks[24]);
 
-            // Calculate head tilt
+            // Check confidence
+            if (!leftShoulder || !rightShoulder || !leftHip || !rightHip) return;
+            if (leftShoulder.confidence < 0.3 || rightShoulder.confidence < 0.3 ||
+                leftHip.confidence < 0.3 || rightHip.confidence < 0.3) return;
+
+            // Calculate anchor point (torso center between shoulders and hips)
+            const cx = (leftShoulder.x + rightShoulder.x) / 2;
+            const cyShoulder = (leftShoulder.y + rightShoulder.y) / 2;
+            const cyHip = (leftHip.y + rightHip.y) / 2;
+            const cyNavel = cyShoulder + 0.5 * (cyHip - cyShoulder); // Torso center
+
+            // Calculate scale based on shoulder width
+            const shoulderWidth = Math.abs(rightShoulder.x - leftShoulder.x);
+            const targetWidth = shoulderWidth * 5.5; // Same factor as main branch
+            const scaleFactor = targetWidth / this.meshConfig.width;
+
+            // Apply smoothed position and scale to reduce flickering
+            if (!this.lastMeshTransform) {
+                this.lastMeshTransform = { x: mesh.x, y: mesh.y, scale: mesh.scale.x };
+            }
+
+            const targetX = cx - (this.meshConfig.width * scaleFactor) / 2;
+            const targetY = cyNavel - (this.meshConfig.height * scaleFactor) * 0.3;
+
+            // Smooth the position changes
+            const smoothX = this.lerp(this.lastMeshTransform.x, targetX, 0.3);
+            const smoothY = this.lerp(this.lastMeshTransform.y, targetY, 0.3);
+            const smoothScale = this.lerp(this.lastMeshTransform.scale, scaleFactor, 0.3);
+
+            mesh.position.set(smoothX, smoothY);
+            mesh.scale.set(smoothScale);
+
+            // Update cache
+            this.lastMeshTransform = { x: smoothX, y: smoothY, scale: smoothScale };
+
+            // Calculate and apply rotation based on shoulders
             const shoulderDiff = leftShoulder.y - rightShoulder.y;
             const headTilt = Math.atan2(shoulderDiff, Math.abs(leftShoulder.x - rightShoulder.x));
-
-            // Apply rotation to mesh
-            mesh.rotation = headTilt * 0.5; // Gentle tilt following head
-
-            // Scale based on shoulder width (don't override pose-based scaling)
-            // This is handled by updateMeshSizeAndPosition instead
-
-            // Position mesh to follow torso center (between shoulders and hips)
-            const torsoX = (leftShoulder.x + rightShoulder.x) / 2;
-            const shoulderY = (leftShoulder.y + rightShoulder.y) / 2;
-
-            // Center mesh on torso for clothing effect
-            mesh.x = torsoX - this.meshConfig.width / 2;
-            mesh.y = shoulderY - this.meshConfig.height * 0.3; // Offset upward to cover torso properly
-
-            // Removed debug spam
+            mesh.rotation = headTilt * 0.5; // Gentle tilt following body
 
         } catch (error) {
             console.log('🔴 MESH: Transform error:', error.message);
         }
 
-        // Re-enable vertex deformation for clothing-like behavior
-        this.applyVertexDeformation(mesh, landmarks);
+        // Apply vertex deformation for clothing-like behavior
+        this.applyVertexDeformation(meshId, mesh, landmarks);
     }
 
-    applyVertexDeformation(mesh, landmarks) {
-        const landmarkMapping = this.landmarkMappings.get('test');
-        if (!landmarkMapping) return;
-
+    applyVertexDeformation(meshId, mesh, landmarks) {
+        // Use main branch's approach: direct manipulation of 4 key vertices
         const geometry = mesh.geometry;
 
         try {
@@ -467,39 +520,67 @@ class PixiMeshLayer extends BaseLayer {
             const vertexBuffer = geometry.getBuffer('aPosition');
             if (!vertexBuffer || !vertexBuffer.data) return;
 
-            // Apply controlled deformation to mapped vertices
-            landmarkMapping.forEach((mapping, vertexIndex) => {
-                // Calculate target position from landmarks
-                let targetX = 0, targetY = 0, weightSum = 0;
+            const positions = vertexBuffer.data;
 
-                mapping.landmarks.forEach(landmarkIndex => {
-                    if (landmarks[landmarkIndex] && landmarks[landmarkIndex].visibility > 0.5) {
-                        const landmark = this.landmarkToPixi(landmarks[landmarkIndex]);
-                        targetX += landmark.x;
-                        targetY += landmark.y;
-                        weightSum += 1;
-                    }
-                });
+            // Extract required keypoints by index (MediaPipe landmark indices)
+            const leftShoulder = landmarks[11];   // MediaPipe left shoulder
+            const rightShoulder = landmarks[12];  // MediaPipe right shoulder
+            const leftHip = landmarks[23];        // MediaPipe left hip
+            const rightHip = landmarks[24];       // MediaPipe right hip
 
-                if (weightSum > 0) {
-                    // Average landmark positions
-                    targetX /= weightSum;
-                    targetY /= weightSum;
+            // Confidence check
+            if (!leftShoulder || !rightShoulder || !leftHip || !rightHip) return;
+            if (leftShoulder.visibility < 0.3 || rightShoulder.visibility < 0.3 ||
+                leftHip.visibility < 0.3 || rightHip.visibility < 0.3) return;
 
-                    // Apply offset and convert to mesh-local coordinates
-                    const meshLocalX = (targetX - mesh.x) + mapping.offset.x;
-                    const meshLocalY = (targetY - mesh.y) + mapping.offset.y;
+            // Define the four keypoints we're tracking (same as main branch)
+            const keypoints = [
+                { landmark: leftShoulder, vertexIndex: this.POSE_VERTEX_MAP.left_shoulder },
+                { landmark: rightShoulder, vertexIndex: this.POSE_VERTEX_MAP.right_shoulder },
+                { landmark: leftHip, vertexIndex: this.POSE_VERTEX_MAP.left_hip },
+                { landmark: rightHip, vertexIndex: this.POSE_VERTEX_MAP.right_hip }
+            ];
 
-                    // Apply influence (how much this vertex follows the landmark)
-                    const currentX = vertexBuffer.data[vertexIndex * 2];
-                    const currentY = vertexBuffer.data[vertexIndex * 2 + 1];
+            // Update each vertex position with smoothing
+            keypoints.forEach(({ landmark, vertexIndex }) => {
+                // Convert landmark to screen coordinates
+                const screenPos = this.landmarkToPixi(landmark);
 
-                    vertexBuffer.data[vertexIndex * 2] = currentX + (meshLocalX - currentX) * mapping.influence * 0.3; // Gentle influence
-                    vertexBuffer.data[vertexIndex * 2 + 1] = currentY + (meshLocalY - currentY) * mapping.influence * 0.3;
+                // Convert from screen to mesh-local coordinates
+                // Account for mesh scale when converting to local space
+                const meshLocalX = (screenPos.x - mesh.x) / mesh.scale.x;
+                const meshLocalY = (screenPos.y - mesh.y) / mesh.scale.y;
+
+                // Get last position for smoothing
+                const vertexCache = this.lastVertexPositions.get(meshId) || new Map();
+                let targetX = meshLocalX;
+                let targetY = meshLocalY;
+
+                if (vertexCache.has(vertexIndex)) {
+                    const last = vertexCache.get(vertexIndex);
+
+                    // Apply dead-zone for tiny changes
+                    if (Math.abs(targetX - last.x) < this.DEAD_ZONE_PX) targetX = last.x;
+                    if (Math.abs(targetY - last.y) < this.DEAD_ZONE_PX) targetY = last.y;
+
+                    // Smooth the movement to reduce jitter
+                    targetX = this.lerp(last.x, targetX, this.SMOOTHING_FACTOR);
+                    targetY = this.lerp(last.y, targetY, this.SMOOTHING_FACTOR);
                 }
+
+                // Write smoothed position to buffer
+                const bufferIndex = vertexIndex * 2;
+                positions[bufferIndex] = targetX;
+                positions[bufferIndex + 1] = targetY;
+
+                // Update cache for next frame
+                if (!this.lastVertexPositions.has(meshId)) {
+                    this.lastVertexPositions.set(meshId, new Map());
+                }
+                this.lastVertexPositions.get(meshId).set(vertexIndex, { x: targetX, y: targetY });
             });
 
-            // Update the vertex buffer
+            // Update the buffer once after all four assignments
             vertexBuffer.update();
 
         } catch (error) {
@@ -507,11 +588,17 @@ class PixiMeshLayer extends BaseLayer {
         }
     }
 
+    // Linear interpolation for smoothing
+    lerp(a, b, t) {
+        return a + (b - a) * t;
+    }
+
     // Utility method to convert MediaPipe landmarks to PixiJS coordinates
     landmarkToPixi(landmark) {
         return {
             x: landmark.x * this.pixiApp.renderer.width,
-            y: landmark.y * this.pixiApp.renderer.height
+            y: landmark.y * this.pixiApp.renderer.height,
+            confidence: landmark.visibility
         };
     }
 
@@ -594,7 +681,6 @@ class PixiMeshLayer extends BaseLayer {
         }
 
         this.meshes.clear();
-        this.landmarkMappings.clear();
 
         console.log('PixiMeshLayer destroyed');
     }
@@ -845,7 +931,8 @@ class PixiMeshLayer extends BaseLayer {
     }
 
     // Method to change mesh texture dynamically
-    async setMeshTexture(meshId, texturePath) {
+    // Texture switching removed - PixiMeshLayer just shows building mesh
+    async setMeshTexture_DISABLED(meshId, texturePath) {
         const mesh = this.meshes.get(meshId);
         if (!mesh) {
             console.warn(`Mesh ${meshId} not found`);
@@ -854,24 +941,21 @@ class PixiMeshLayer extends BaseLayer {
 
         try {
             // Use the exact same pattern that worked in our test
-            console.log(`Loading texture: ${texturePath}`);
+            console.log(`🎨 Loading texture: ${texturePath}`);
 
             // Texture switching now working properly
             const texture = await PIXI.Assets.load(texturePath);
 
-            console.log(`✓ Texture loaded successfully: ${texturePath}`, {
+            console.log(`✅ Texture loaded successfully: ${texturePath}`, {
                 valid: texture.valid,
                 width: texture.width,
-                height: texture.height
+                height: texture.height,
+                meshVisible: mesh.visible
             });
 
-            // Apply texture regardless of valid flag - trust that it loaded
+            // Apply texture
             mesh.texture = texture;
-            console.log(`✓ Mesh ${meshId} texture applied: ${texturePath}`);
-
-            // FORCE: Render immediately after texture change
-            this.pixiApp.renderer.render(this.pixiApp.stage);
-            console.log('🔧 Forced render after texture update');
+            console.log(`🎯 Applied texture to mesh ${meshId}: ${texturePath}`);
 
         } catch (error) {
             console.error(`Error loading mesh texture for ${texturePath}:`, error);
@@ -884,46 +968,68 @@ class PixiMeshLayer extends BaseLayer {
     // Create test mesh for Phase 2 development
     async createTestMesh() {
         try {
-            // Use simple quad that works, with controlled mappings
-            const vertices = new Float32Array([
-                0, 0,                              // top-left
-                this.meshConfig.width, 0,          // top-right
-                this.meshConfig.width, this.meshConfig.height,  // bottom-right
-                0, this.meshConfig.height         // bottom-left
-            ]);
+            // Create 6x6 grid mesh matching main branch
+            const rows = this.meshConfig.rows;
+            const cols = this.meshConfig.cols;
+            const width = this.meshConfig.width;
+            const height = this.meshConfig.height;
 
-            const uvs = new Float32Array([
-                0, 0,  // top-left UV
-                1, 0,  // top-right UV
-                1, 1,  // bottom-right UV
-                0, 1   // bottom-left UV
-            ]);
+            const vertices = [];
+            const uvs = [];
+            const indices = [];
 
-            const indices = new Uint16Array([
-                0, 1, 2,  // first triangle: top-left, top-right, bottom-right
-                0, 2, 3   // second triangle: top-left, bottom-right, bottom-left
-            ]);
+            // Create grid of vertices
+            for (let row = 0; row < rows; row++) {
+                for (let col = 0; col < cols; col++) {
+                    // Vertex position
+                    const x = (col / (cols - 1)) * width;
+                    const y = (row / (rows - 1)) * height;
+                    vertices.push(x, y);
 
-            const geometry = new PIXI.MeshGeometry(vertices, uvs, indices);
-            console.log('🔧 Using working QUAD geometry with controlled mappings');
+                    // UV coordinates
+                    const u = col / (cols - 1);
+                    const v = row / (rows - 1);
+                    uvs.push(u, v);
+                }
+            }
+
+            // Create triangles from the grid
+            for (let row = 0; row < rows - 1; row++) {
+                for (let col = 0; col < cols - 1; col++) {
+                    const topLeft = row * cols + col;
+                    const topRight = topLeft + 1;
+                    const bottomLeft = (row + 1) * cols + col;
+                    const bottomRight = bottomLeft + 1;
+
+                    // Two triangles per quad
+                    indices.push(topLeft, topRight, bottomRight);
+                    indices.push(topLeft, bottomRight, bottomLeft);
+                }
+            }
+
+            const geometry = new PIXI.MeshGeometry(
+                new Float32Array(vertices),
+                new Float32Array(uvs),
+                new Uint16Array(indices)
+            );
+
+            console.log(`🔧 Created ${rows}x${cols} grid mesh matching main branch`);
 
             // DEBUG: Check initial geometry vertices
             const initialVertices = geometry.getBuffer('aPosition').data;
             console.log('🔧 Simple quad vertices:', Array.from(initialVertices));
             console.log('🔧 Simple quad created successfully');
 
-            // Start with a very obvious colored texture for visibility testing
-            const graphics = new PIXI.Graphics();
-            // Use PixiJS 8 API
-            graphics.rect(0, 0, this.meshConfig.width, this.meshConfig.height).fill(0xff0000); // BRIGHT RED
+            // Load initial texture
+            let initialTexture = PIXI.Texture.WHITE;
 
-            // FIX: Use a different method to create texture - add graphics to stage first
-            this.pixiApp.stage.addChild(graphics);
-            const initialTexture = this.pixiApp.renderer.generateTexture(graphics);
-            this.pixiApp.stage.removeChild(graphics); // Remove after generating texture
-
-            console.log('🔧 Created red initial texture for mesh:', initialTexture);
-            console.log('🔧 Texture valid:', initialTexture.valid, 'width:', initialTexture.width, 'height:', initialTexture.height);
+            // Use a simple building texture - show building mesh
+            try {
+                initialTexture = await PIXI.Assets.load('images/prime.png');
+                console.log('✓ Loaded building mesh texture');
+            } catch (error) {
+                console.warn('Could not load building texture, using white:', error);
+            }
 
             // Use the exact syntax that worked in test-mesh-proper.html
             const mesh = new PIXI.Mesh({
@@ -932,12 +1038,12 @@ class PixiMeshLayer extends BaseLayer {
             });
             console.log('🔧 Created mesh with working PixiJS 8 syntax from test');
 
-            // Position mesh prominently - FORCE IT TO BE VISIBLE
-            mesh.x = 50; // Fixed position, top-left area
-            mesh.y = 50;
+            // Center mesh initially (will be repositioned based on pose)
+            mesh.x = this.pixiApp.renderer.width / 2 - this.meshConfig.width / 2;
+            mesh.y = this.pixiApp.renderer.height / 2 - this.meshConfig.height / 2;
 
-            // Make mesh VERY visible for debugging
-            mesh.visible = true;
+            // Always show building mesh
+            mesh.visible = true; // Always visible
             mesh.renderable = true;
             mesh.cullable = false; // Prevent culling
             mesh.alpha = 1.0; // Full opacity
@@ -992,26 +1098,9 @@ class PixiMeshLayer extends BaseLayer {
                 isInBounds: mesh.x < this.pixiApp.renderer.width && mesh.y < this.pixiApp.renderer.height
             });
 
-            // Create controlled landmark-to-vertex mappings for clothing deformation
-            const landmarkMapping = this.createControlledLandmarkMapping();
-            this.landmarkMappings.set('test', landmarkMapping);
-            console.log('✅ Controlled landmark mapping created:', landmarkMapping.size, 'mappings');
-
-            // TEST: Load cristoredentor.png directly to test if file works
-            console.log('🧪 Testing cristoredentor.png texture loading...');
-            this.setMeshTexture('test', 'images/cristoredentor.png').then(() => {
-                console.log('✅ Cristoredentor.png texture loaded successfully on mesh');
-
-                // After 3 seconds, test switching back to prime.png
-                setTimeout(() => {
-                    console.log('🔄 Testing switch back to prime.png...');
-                    this.setMeshTexture('test', 'images/prime.png').then(() => {
-                        console.log('✅ Prime.png texture loaded successfully on mesh');
-                    });
-                }, 3000);
-            }).catch(error => {
-                console.error('❌ Failed to load cristoredentor.png texture:', error);
-            });
+            // Initialize vertex position cache for smoothing
+            this.lastVertexPositions.set('test', new Map());
+            console.log('✅ Using direct 4-vertex manipulation from main branch');
 
             console.log('✓ Test mesh created, loading prime.png texture...');
             console.log('🔍 MESH DEBUG: Mesh added to stage, should be visible now!');
