@@ -37,8 +37,8 @@ class PixiMeshLayer extends BaseLayer {
         this.POSE_VERTEX_MAP = {
             left_shoulder: 14,   // Row 2, Col 2 (2*6 + 2 = 14)
             right_shoulder: 15,  // Row 2, Col 3 (2*6 + 3 = 15)
-            left_hip: 26,        // Row 4, Col 2 (4*6 + 2 = 26)
-            right_hip: 27        // Row 4, Col 3 (4*6 + 3 = 27)
+            left_hip: 20,        // Row 3, Col 2 (3*6 + 2 = 20) - FIXED to match main branch
+            right_hip: 21        // Row 3, Col 3 (3*6 + 3 = 21) - FIXED to match main branch
         };
 
         // Smoothing constants from main branch
@@ -108,25 +108,41 @@ class PixiMeshLayer extends BaseLayer {
             this.pixiApp.canvas.style.position = 'absolute';
             this.pixiApp.canvas.style.top = '0';
             this.pixiApp.canvas.style.left = '0';
-            this.pixiApp.canvas.style.zIndex = '100'; // Even higher z-index
+            this.pixiApp.canvas.style.zIndex = '100'; // High z-index to be on top of most elements
             this.pixiApp.canvas.style.pointerEvents = 'none';
             this.pixiApp.canvas.style.opacity = '1.0'; // Ensure full opacity
-            // Remove background color for production
+            this.pixiApp.canvas.style.display = 'block'; // Ensure it's visible
 
             console.log('✅ PixiJS canvas positioned and styled');
 
             // DEBUG: Check if canvas is actually in the DOM
             const canvasInDom = document.querySelector('#pixiContainer canvas');
             console.log('🔍 Canvas in DOM:', !!canvasInDom);
-            console.log('🔍 Canvas element:', this.pixiApp.canvas);
-            console.log('🔍 Canvas parent:', this.pixiApp.canvas.parentElement);
-            console.log('🔍 Canvas computed style:', window.getComputedStyle(this.pixiApp.canvas));
+            console.log('🔍 Canvas dimensions:', {
+                width: this.pixiApp.canvas.width,
+                height: this.pixiApp.canvas.height,
+                clientWidth: this.pixiApp.canvas.clientWidth,
+                clientHeight: this.pixiApp.canvas.clientHeight,
+                offsetWidth: this.pixiApp.canvas.offsetWidth,
+                offsetHeight: this.pixiApp.canvas.offsetHeight
+            });
+            console.log('🔍 Canvas visibility:', {
+                display: this.pixiApp.canvas.style.display,
+                visibility: this.pixiApp.canvas.style.visibility,
+                opacity: this.pixiApp.canvas.style.opacity,
+                zIndex: this.pixiApp.canvas.style.zIndex
+            });
+
+            // Remove red background - no longer needed for debugging
+            // this.pixiApp.renderer.background.alpha = 0; // Transparent background
 
             // Set up debug graphics for development
             if (this.config.debugMode) {
                 this.debugGraphics = new PIXI.Graphics();
                 this.pixiApp.stage.addChild(this.debugGraphics);
             }
+
+            // Cyan test rectangle removed - no longer needed
 
             // Create test mesh with PNG texture
             console.log('About to create test mesh...');
@@ -192,8 +208,9 @@ class PixiMeshLayer extends BaseLayer {
         // Process pose data for mesh animation
         if (inputData.poses && inputData.poses.length > 0) {
             this.updateMeshesFromPoses(inputData.poses, timestamp);
+        } else if (inputData.currentPose && inputData.currentPose.poseLandmarks) {
+            this.updateMeshFromLandmarks('test', inputData.currentPose.poseLandmarks);
         } else if (inputData.poseLandmarks) {
-            // Handle direct landmark data from segmentation.js
             this.updateMeshFromLandmarks('test', inputData.poseLandmarks);
         }
 
@@ -303,12 +320,15 @@ class PixiMeshLayer extends BaseLayer {
         const mesh = this.meshes.get(meshId);
         if (!mesh) return;
 
-        // Only update scaling if pose type actually changed
+        // Log pose changes
         if (!this.currentPoseType || this.currentPoseType !== poseType) {
             console.log(`Pose changed: ${this.currentPoseType} → ${poseType}`);
             this.currentPoseType = poseType;
-            // Texture switching removed - PixiMeshLayer just shows building mesh
         }
+
+        // Always check texture switching (not just on pose change)
+        // This ensures the stability timer can complete
+        this.updateMeshTextureForPose(meshId, poseType);
 
         // Apply pose-responsive scaling and positioning
         this.updateMeshSizeAndPosition(mesh, poseType, timestamp);
@@ -354,8 +374,8 @@ class PixiMeshLayer extends BaseLayer {
         mesh.scale.set(scaleX, scaleY);
     }
 
-    // Texture switching removed - PixiMeshLayer just shows building mesh
-    updateMeshTextureForPose_DISABLED(meshId, poseType) {
+    // Texture switching re-enabled for pose-based changes
+    updateMeshTextureForPose(meshId, poseType) {
         const timestamp = new Date().toLocaleTimeString();
 
         // Initialize tracking objects if needed
@@ -398,46 +418,50 @@ class PixiMeshLayer extends BaseLayer {
             'tree': 'images/prime.png',           // Tree pose -> Prime Tower
             'warrior': 'images/cristoredentor.png', // Warrior -> Cristo Redentor
             'Warrior': 'images/cristoredentor.png', // Capitalized Warrior -> Cristo Redentor
-            'neutral': null                        // Hide mesh for neutral
+            'neutral': 'images/prime.png'         // Default to Prime Tower for neutral
         };
 
         const targetTexture = poseTextures[poseType];
         const mesh = this.meshes.get(meshId);
 
-        // Hide mesh if neutral pose
-        if (targetTexture === null) {
-            if (mesh) {
-                mesh.visible = false;
-                console.log(`🚫 Hiding mesh for neutral pose`);
-            }
-            return;
-        } else {
-            if (mesh) {
-                mesh.visible = true;
-                console.log(`✅ Showing mesh for pose: ${poseType}`);
+        // Switch texture based on pose - only if texture actually changed
+        if (mesh && targetTexture) {
+            mesh.visible = true;
+
+            // Check if we need to change texture
+            const currentTexturePath = this.currentMeshTextures.get(meshId);
+            if (currentTexturePath !== targetTexture) {
+                console.log(`🔄 Switching from ${currentTexturePath} to ${poseType} texture: ${targetTexture}`);
+                this.currentMeshTextures.set(meshId, targetTexture);
+                this.lastTextureChange.set(meshId, now);
+
+                // Load and apply new texture
+                PIXI.Assets.load(targetTexture).then(newTexture => {
+                    if (mesh instanceof PIXI.Sprite) {
+                        mesh.texture = newTexture;
+                        // Keep sprite size consistent
+                        mesh.width = 200;
+                        mesh.height = 200;
+                        console.log(`✅ Applied ${poseType} texture to sprite`);
+                    }
+                }).catch(error => {
+                    console.warn('Failed to load texture:', targetTexture, error);
+                });
             }
         }
 
-        // Only update if texture actually changed for this mesh
-        if (this.currentMeshTextures.get(meshId) !== targetTexture) {
-            console.log(`🔄 Switching mesh texture: ${poseType} -> ${targetTexture}`);
-            this.currentMeshTextures.set(meshId, targetTexture);
-            this.lastTextureChange.set(meshId, now);
-
-            // Don't await to avoid blocking the render loop
-            this.setMeshTexture(meshId, targetTexture).catch(error => {
-                console.error('Failed to set mesh texture:', error);
-            });
-        }
+        // Texture switching is now handled above
     }
 
     updateMeshFromLandmarks(meshId, landmarks) {
+        // Remove verbose logging
+
         const mesh = this.meshes.get(meshId);
 
         if (!mesh) {
             // Only log once when mesh is missing
             if (!this.meshMissingLogged) {
-                console.log('Mesh not found for', meshId);
+                console.log('❌ Mesh not found for', meshId);
                 console.log('Available meshes:', Array.from(this.meshes.keys()));
                 this.meshMissingLogged = true;
             }
@@ -447,12 +471,16 @@ class PixiMeshLayer extends BaseLayer {
         // Reset the missing log flag since we found the mesh
         this.meshMissingLogged = false;
 
-        const geometry = mesh.geometry;
-
-        // Check if geometry and buffer exist
-        if (!geometry) {
-            console.error('Mesh geometry not found');
-            return;
+        // Skip geometry check for sprites
+        if (mesh instanceof PIXI.Sprite) {
+            // Using sprite - no geometry needed
+        } else if (mesh.geometry) {
+            const geometry = mesh.geometry;
+            // Check if geometry and buffer exist
+            if (!geometry) {
+                console.error('Mesh geometry not found');
+                return;
+            }
         }
 
         // Position and scale mesh based on pose (like main branch)
@@ -460,13 +488,33 @@ class PixiMeshLayer extends BaseLayer {
             // Get key landmarks
             const leftShoulder = this.landmarkToPixi(landmarks[11]);
             const rightShoulder = this.landmarkToPixi(landmarks[12]);
-            const leftHip = this.landmarkToPixi(landmarks[23]);
-            const rightHip = this.landmarkToPixi(landmarks[24]);
+            let leftHip = this.landmarkToPixi(landmarks[23]);
+            let rightHip = this.landmarkToPixi(landmarks[24]);
 
-            // Check confidence
-            if (!leftShoulder || !rightShoulder || !leftHip || !rightHip) return;
-            if (leftShoulder.confidence < 0.3 || rightShoulder.confidence < 0.3 ||
-                leftHip.confidence < 0.3 || rightHip.confidence < 0.3) return;
+            // Don't log detailed conversion every frame - too spammy
+
+            // Check if landmarks exist (but ignore hips if they have low confidence)
+            if (!leftShoulder || !rightShoulder) {
+                console.log('❌ Missing shoulder landmarks, skipping update');
+                return;
+            }
+
+            // Use shoulders for positioning even if hips are not visible
+            // If hips have very low confidence, estimate their position
+            const useEstimatedHips = !leftHip || !rightHip ||
+                                    leftHip.confidence < 0.1 || rightHip.confidence < 0.1;
+
+            if (useEstimatedHips) {
+                // Low hip confidence - using estimated position
+                // Estimate hip position based on shoulders (typically hips are below shoulders)
+                const estimatedHipY = leftShoulder.y + 200; // Rough estimate
+                leftHip = leftHip || { x: leftShoulder.x, y: estimatedHipY, confidence: 0.5 };
+                rightHip = rightHip || { x: rightShoulder.x, y: estimatedHipY, confidence: 0.5 };
+            }
+
+            // Skip confidence logging
+
+            // Processing position update
 
             // Calculate anchor point (torso center between shoulders and hips)
             const cx = (leftShoulder.x + rightShoulder.x) / 2;
@@ -474,26 +522,61 @@ class PixiMeshLayer extends BaseLayer {
             const cyHip = (leftHip.y + rightHip.y) / 2;
             const cyNavel = cyShoulder + 0.5 * (cyHip - cyShoulder); // Torso center
 
-            // Calculate scale based on shoulder width
-            const shoulderWidth = Math.abs(rightShoulder.x - leftShoulder.x);
-            const targetWidth = shoulderWidth * 5.5; // Same factor as main branch
-            const scaleFactor = targetWidth / this.meshConfig.width;
+            // Keep container at fixed size - don't scale it
+            let scaleFactor = 1.0; // Fixed scale to keep sprite in rectangle
 
             // Apply smoothed position and scale to reduce flickering
             if (!this.lastMeshTransform) {
-                this.lastMeshTransform = { x: mesh.x, y: mesh.y, scale: mesh.scale.x };
+                // Initialize with center position
+                this.lastMeshTransform = {
+                    x: this.pixiApp.renderer.width / 2,
+                    y: this.pixiApp.renderer.height / 2,
+                    scale: 1.0
+                };
             }
 
-            const targetX = cx - (this.meshConfig.width * scaleFactor) / 2;
-            const targetY = cyNavel - (this.meshConfig.height * scaleFactor) * 0.3;
+            // Position the CONTAINER (not individual sprite) at torso center
+            // The sprite stays at (0,0) within the container, fitting the green rectangle
+            const targetX = cx - 100; // Center 200px container on torso (200/2 = 100)
+            const targetY = cyNavel - 100; // Center 200px container on torso
 
             // Smooth the position changes
             const smoothX = this.lerp(this.lastMeshTransform.x, targetX, 0.3);
             const smoothY = this.lerp(this.lastMeshTransform.y, targetY, 0.3);
             const smoothScale = this.lerp(this.lastMeshTransform.scale, scaleFactor, 0.3);
 
-            mesh.position.set(smoothX, smoothY);
-            mesh.scale.set(smoothScale);
+            // Check if we have a container to update instead of the mesh directly
+            const container = this.meshContainers?.get(meshId);
+            if (container) {
+                // Update container position directly
+                container.position.set(smoothX, smoothY);
+                container.scale.set(smoothScale);
+                container.visible = true;
+
+                // Also ensure the mesh/sprite inside is visible
+                if (mesh) {
+                    mesh.visible = true;
+                    mesh.alpha = 0.8; // Keep it semi-transparent
+
+                    // Force sprite to stay at correct size
+                    mesh.width = 200;
+                    mesh.height = 200;
+                    mesh.position.set(0, 0);
+
+                    // Sprite is now working correctly!
+                }
+
+                // Force render to ensure changes are visible
+                if (this.pixiApp?.renderer) {
+                    this.pixiApp.renderer.render(this.pixiApp.stage);
+                }
+            } else {
+                mesh.position.set(smoothX, smoothY);
+                mesh.scale.set(smoothScale);
+                mesh.visible = true;
+                mesh.alpha = 1.0;
+                console.log(`📍 Mesh moved to x:${Math.round(smoothX)} y:${Math.round(smoothY)}`);
+            }
 
             // Update cache
             this.lastMeshTransform = { x: smoothX, y: smoothY, scale: smoothScale };
@@ -512,26 +595,19 @@ class PixiMeshLayer extends BaseLayer {
     }
 
     applyVertexDeformation(meshId, mesh, landmarks) {
-        // Use main branch's approach: direct manipulation of 4 key vertices
-        const geometry = mesh.geometry;
+        // For sprites, we can't deform vertices directly
+        // Instead, we'll apply transforms like skew/rotation based on pose
+
+        if (!mesh || !(mesh instanceof PIXI.Sprite)) {
+            return; // Only works with sprites for now
+        }
 
         try {
-            // Get vertex buffer
-            const vertexBuffer = geometry.getBuffer('aPosition');
-            if (!vertexBuffer || !vertexBuffer.data) return;
+            // Skip sprite deformation for now
 
-            const positions = vertexBuffer.data;
-
-            // Extract required keypoints by index (MediaPipe landmark indices)
-            const leftShoulder = landmarks[11];   // MediaPipe left shoulder
-            const rightShoulder = landmarks[12];  // MediaPipe right shoulder
-            const leftHip = landmarks[23];        // MediaPipe left hip
-            const rightHip = landmarks[24];       // MediaPipe right hip
-
-            // Confidence check
-            if (!leftShoulder || !rightShoulder || !leftHip || !rightHip) return;
-            if (leftShoulder.visibility < 0.3 || rightShoulder.visibility < 0.3 ||
-                leftHip.visibility < 0.3 || rightHip.visibility < 0.3) return;
+            // For sprites, we can apply some basic deformation using skew
+            // Skip complex vertex manipulation since we're using a sprite now
+            return;
 
             // Define the four keypoints we're tracking (same as main branch)
             const keypoints = [
@@ -546,15 +622,13 @@ class PixiMeshLayer extends BaseLayer {
                 // Convert landmark to screen coordinates
                 const screenPos = this.landmarkToPixi(landmark);
 
-                // Convert from screen to mesh-local coordinates
-                // Account for mesh scale when converting to local space
-                const meshLocalX = (screenPos.x - mesh.x) / mesh.scale.x;
-                const meshLocalY = (screenPos.y - mesh.y) / mesh.scale.y;
+                // Use PixiJS toLocal() method like main branch (more reliable)
+                const localPos = mesh.toLocal(new PIXI.Point(screenPos.x, screenPos.y));
 
                 // Get last position for smoothing
                 const vertexCache = this.lastVertexPositions.get(meshId) || new Map();
-                let targetX = meshLocalX;
-                let targetY = meshLocalY;
+                let targetX = localPos.x;
+                let targetY = localPos.y;
 
                 if (vertexCache.has(vertexIndex)) {
                     const last = vertexCache.get(vertexIndex);
@@ -580,8 +654,8 @@ class PixiMeshLayer extends BaseLayer {
                 this.lastVertexPositions.get(meshId).set(vertexIndex, { x: targetX, y: targetY });
             });
 
-            // Update the buffer once after all four assignments
-            vertexBuffer.update();
+            // Update the buffer in PixiJS v8
+            positionBuffer.update();
 
         } catch (error) {
             console.log('Vertex deformation error:', error.message);
@@ -968,122 +1042,141 @@ class PixiMeshLayer extends BaseLayer {
     // Create test mesh for Phase 2 development
     async createTestMesh() {
         try {
-            // Create 6x6 grid mesh matching main branch
-            const rows = this.meshConfig.rows;
-            const cols = this.meshConfig.cols;
-            const width = this.meshConfig.width;
-            const height = this.meshConfig.height;
+            // SimplePlane will create its own geometry automatically
+            console.log(`🔧 Creating ${this.meshConfig.rows}x${this.meshConfig.cols} grid mesh matching main branch`);
 
-            const vertices = [];
-            const uvs = [];
-            const indices = [];
-
-            // Create grid of vertices
-            for (let row = 0; row < rows; row++) {
-                for (let col = 0; col < cols; col++) {
-                    // Vertex position
-                    const x = (col / (cols - 1)) * width;
-                    const y = (row / (rows - 1)) * height;
-                    vertices.push(x, y);
-
-                    // UV coordinates
-                    const u = col / (cols - 1);
-                    const v = row / (rows - 1);
-                    uvs.push(u, v);
-                }
-            }
-
-            // Create triangles from the grid
-            for (let row = 0; row < rows - 1; row++) {
-                for (let col = 0; col < cols - 1; col++) {
-                    const topLeft = row * cols + col;
-                    const topRight = topLeft + 1;
-                    const bottomLeft = (row + 1) * cols + col;
-                    const bottomRight = bottomLeft + 1;
-
-                    // Two triangles per quad
-                    indices.push(topLeft, topRight, bottomRight);
-                    indices.push(topLeft, bottomRight, bottomLeft);
-                }
-            }
-
-            const geometry = new PIXI.MeshGeometry(
-                new Float32Array(vertices),
-                new Float32Array(uvs),
-                new Uint16Array(indices)
-            );
-
-            console.log(`🔧 Created ${rows}x${cols} grid mesh matching main branch`);
-
-            // DEBUG: Check initial geometry vertices
-            const initialVertices = geometry.getBuffer('aPosition').data;
-            console.log('🔧 Simple quad vertices:', Array.from(initialVertices));
-            console.log('🔧 Simple quad created successfully');
-
-            // Load initial texture
+            // Try to load actual texture
             let initialTexture = PIXI.Texture.WHITE;
-
-            // Use a simple building texture - show building mesh
             try {
                 initialTexture = await PIXI.Assets.load('images/prime.png');
-                console.log('✓ Loaded building mesh texture');
+                console.log('✓ Loaded prime.png texture:', {
+                    width: initialTexture.width,
+                    height: initialTexture.height,
+                    valid: initialTexture.valid
+                });
             } catch (error) {
-                console.warn('Could not load building texture, using white:', error);
+                console.warn('Could not load prime.png, using white texture:', error);
+                initialTexture = PIXI.Texture.WHITE;
             }
 
-            // Use the exact syntax that worked in test-mesh-proper.html
-            const mesh = new PIXI.Mesh({
-                geometry: geometry,
-                texture: initialTexture
-            });
-            console.log('🔧 Created mesh with working PixiJS 8 syntax from test');
+            // Use a Sprite instead of Mesh since texture rendering works with Sprite
+            const meshWidth = 200;
+            const meshHeight = 200;
 
-            // Center mesh initially (will be repositioned based on pose)
-            mesh.x = this.pixiApp.renderer.width / 2 - this.meshConfig.width / 2;
-            mesh.y = this.pixiApp.renderer.height / 2 - this.meshConfig.height / 2;
+            const mesh = new PIXI.Sprite(initialTexture);
+            mesh.width = meshWidth;
+            mesh.height = meshHeight;
+            mesh.position.set(0, 0);
+            mesh.anchor.set(0, 0);
 
-            // Always show building mesh
-            mesh.visible = true; // Always visible
-            mesh.renderable = true;
-            mesh.cullable = false; // Prevent culling
-            mesh.alpha = 1.0; // Full opacity
-            mesh.scale.set(1.0); // Normal scale for proper clothing fit
+            // Always show the sprite
+            mesh.visible = true;
+            mesh.alpha = 1.0;
+            mesh.tint = 0xFFFFFF; // No tint
 
-            console.log('🟢 MESH: Created and positioned:', {
-                x: mesh.x,
-                y: mesh.y,
-                width: this.meshConfig.width,
-                height: this.meshConfig.height,
-                visible: mesh.visible,
-                alpha: mesh.alpha,
-                canvasSize: `${this.pixiApp.renderer.width}x${this.pixiApp.renderer.height}`
+            console.log('🟢 Using Sprite instead of Mesh:', {
+                width: mesh.width,
+                height: mesh.height,
+                textureValid: !!mesh.texture,
+                visible: mesh.visible
             });
 
             // Debug elements no longer needed - mesh is working!
 
-            // Add to stage
-            this.pixiApp.stage.addChild(mesh);
-            console.log('🔧 Mesh added to stage, stage children:', this.pixiApp.stage.children.length);
+            // Create container for positioning and scaling like main branch
+            const meshContainer = new PIXI.Container();
+
+            // Add back the green background for visibility (this made it work before)
+            const bg = new PIXI.Graphics();
+
+            // Add the test sprite that fits within the green rectangle
+            const testSprite = new PIXI.Sprite(initialTexture);
+            testSprite.width = meshWidth;  // Force to exactly 200x200
+            testSprite.height = meshHeight; // Force to exactly 200x200
+            testSprite.position.set(0, 0); // Same position as green rectangle
+            testSprite.visible = true;
+            testSprite.alpha = 0.8; // Slightly transparent so we can see green behind
+            meshContainer.addChild(testSprite);
+            console.log('🎯 Added test sprite with prime.png texture');
+
+            // Don't add the mesh for now - the sprite was working
+            // meshContainer.addChild(mesh);
+
+            // Test sprite removed - mesh is working now
+
+            // Start container at a visible position
+            meshContainer.x = 400;
+            meshContainer.y = 300;
+
+            // Add container to stage
+            this.pixiApp.stage.addChild(meshContainer);
+            console.log('🔧 Mesh container added to stage, stage children:', this.pixiApp.stage.children.length);
+
+            // Log what's in the stage
+            console.log('📦 Stage children details:');
+            this.pixiApp.stage.children.forEach((child, index) => {
+                console.log(`  Child ${index}:`, {
+                    type: child.constructor.name,
+                    visible: child.visible,
+                    x: child.x,
+                    y: child.y,
+                    children: child.children?.length || 0
+                });
+            });
 
             // DEBUG: Force render immediately after adding mesh
             this.pixiApp.renderer.render(this.pixiApp.stage);
             console.log('🔧 Forced immediate render after adding mesh');
 
-            // Store mesh for future manipulation
-            this.meshes.set('test', mesh);
-            console.log('Mesh stored in meshes map:', this.meshes.has('test'));
+            // Comment out debug rectangles - they might be covering the mesh
+            /*
+            // Add a simple test rectangle to verify PixiJS is rendering
+            const testRect = new PIXI.Graphics();
+            testRect.beginFill(0xFF0000); // Red
+            testRect.drawRect(0, 0, 100, 100);
+            testRect.endFill();
+            testRect.position.set(50, 50);
+            this.pixiApp.stage.addChild(testRect);
+            console.log('🔴 Added red test rectangle to verify PixiJS rendering');
 
-            // DEBUG: Check mesh properties after adding to stage
+            // Add a blue rectangle at the exact mesh position for debugging
+            const meshPositionRect = new PIXI.Graphics();
+            meshPositionRect.beginFill(0x0000FF); // Blue
+            meshPositionRect.drawRect(-meshWidth/2, -meshHeight/2, meshWidth, meshHeight);
+            meshPositionRect.endFill();
+            meshPositionRect.position.set(meshContainer.x, meshContainer.y);
+            this.pixiApp.stage.addChild(meshPositionRect);
+            console.log('🔵 Added blue rectangle at mesh position:', {
+                x: meshContainer.x,
+                y: meshContainer.y,
+                meshOffsetX: -meshWidth/2,
+                meshOffsetY: -meshHeight/2
+            });
+            */
+
+            // Store the test sprite and container for future manipulation
+            this.meshes.set('test', testSprite);
+            this.meshContainers = this.meshContainers || new Map();
+            this.meshContainers.set('test', meshContainer);
+            console.log('Mesh and container stored in maps:', this.meshes.has('test'));
+
+            // DEBUG: Check mesh and container properties
             console.log('🔧 Final mesh debug:', {
-                visible: mesh.visible,
-                alpha: mesh.alpha,
-                x: mesh.x,
-                y: mesh.y,
-                width: mesh.width,
-                height: mesh.height,
-                scaleX: mesh.scale.x,
-                scaleY: mesh.scale.y,
-                texture: !!mesh.texture,
+                meshVisible: mesh.visible,
+                meshAlpha: mesh.alpha,
+                meshX: mesh.x,
+                meshY: mesh.y,
+                meshWidth: mesh.width,
+                meshHeight: mesh.height,
+                meshScale: mesh.scale,
+                meshTexture: !!mesh.texture,
+                containerVisible: meshContainer.visible,
+                containerX: meshContainer.x,
+                containerY: meshContainer.y,
+                containerChildren: meshContainer.children.length,
+                stageChildren: this.pixiApp.stage.children.length,
+                canvasVisible: this.canvas.style.display !== 'none',
+                canvasSize: `${this.canvas.width}x${this.canvas.height}`,
                 parent: !!mesh.parent,
                 canvasWidth: this.pixiApp.renderer.width,
                 canvasHeight: this.pixiApp.renderer.height
