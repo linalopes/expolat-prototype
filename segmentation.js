@@ -157,24 +157,24 @@ class PersonSegmentation {
             currentOverlay: this.currentOverlay
         });
 
-        // Create and configure PixiJS mesh layer
-        console.log('About to create PixiMeshLayer, class available:', typeof PixiMeshLayer);
-        if (typeof PixiMeshLayer === 'undefined') {
-            console.error('PixiMeshLayer class is not defined!');
+        // Create and configure PixiJS sprite layer
+        console.log('About to create PixiSpriteLayer, class available:', typeof PixiSpriteLayer);
+        if (typeof PixiSpriteLayer === 'undefined') {
+            console.error('PixiSpriteLayer class is not defined!');
             return;
         }
-        this.pixiMeshLayer = new PixiMeshLayer({
+        this.pixiSpriteLayer = new PixiSpriteLayer({
             pixiContainer: 'pixiContainer',
             debugMode: true // Debug mode matches default checkbox state
         });
-        console.log('PixiMeshLayer created successfully:', !!this.pixiMeshLayer);
+        console.log('PixiSpriteLayer created successfully:', !!this.pixiSpriteLayer);
 
         // Add layers to manager (simplified to 3 layers)
         this.layerManager.addLayer(this.backgroundLayer);
-        this.layerManager.addLayer(this.pixiMeshLayer);
+        this.layerManager.addLayer(this.pixiSpriteLayer);
         this.layerManager.addLayer(this.natureLayer);
 
-        console.log('Layer system initialized: Background (base), PixiMesh (building), Nature (overlays)');
+        console.log('Layer system initialized: Background (base), PixiSprite (building), Nature (overlays)');
     }
 
     async loadMediaPipe() {
@@ -469,7 +469,7 @@ class PersonSegmentation {
 
             if (textureFile) {
                 this.currentTexture = `images/${textureFile}`;
-                // Building texture now handled by PixiMeshLayer
+                // Building texture now handled by PixiSpriteLayer
                 console.log(`Building texture set to: ${textureFile}`);
 
                 // Update debug display
@@ -1026,18 +1026,18 @@ class PersonSegmentation {
             pixiMeshesCheckbox.checked = true;
 
             // Enable the layer initially since checkbox is checked
-            if (this.pixiMeshLayer) {
-                console.log('🔧 Enabling PixiJS mesh layer initially...');
-                this.pixiMeshLayer.setEnabled(true);
+            if (this.pixiSpriteLayer) {
+                console.log('🔧 Enabling PixiJS sprite layer initially...');
+                this.pixiSpriteLayer.setEnabled(true);
             }
 
             pixiMeshesCheckbox.addEventListener('change', () => {
                 const isEnabled = pixiMeshesCheckbox.checked;
-                console.log('PixiJS meshes enabled:', isEnabled);
+                console.log('PixiJS sprite layer enabled:', isEnabled);
 
-                // Enable/disable the PixiJS mesh layer
-                if (this.pixiMeshLayer) {
-                    this.pixiMeshLayer.setEnabled(isEnabled);
+                // Enable/disable the PixiJS sprite layer
+                if (this.pixiSpriteLayer) {
+                    this.pixiSpriteLayer.setEnabled(isEnabled);
                 }
             });
         }
@@ -1449,20 +1449,20 @@ class PersonSegmentation {
     }
 
     togglePixiDebug(isEnabled) {
-        if (this.pixiMeshLayer) {
-            this.pixiMeshLayer.setDebugMode(isEnabled);
+        if (this.pixiSpriteLayer) {
+            this.pixiSpriteLayer.setDebugMode(isEnabled);
             console.log('PixiJS Debug mode:', isEnabled ? 'ON' : 'OFF');
         }
     }
 
     toggleMeshWireframe(isEnabled) {
         console.log('🔧 toggleMeshWireframe called with:', isEnabled);
-        if (this.pixiMeshLayer) {
-            console.log('🔧 Calling setWireframeMode on pixiMeshLayer');
-            this.pixiMeshLayer.setWireframeMode(isEnabled);
+        if (this.pixiSpriteLayer) {
+            console.log('🔧 Calling setWireframeMode on pixiSpriteLayer');
+            this.pixiSpriteLayer.setWireframeMode(isEnabled);
             console.log('Mesh Wireframe mode:', isEnabled ? 'ON' : 'OFF');
         } else {
-            console.log('🔴 pixiMeshLayer not found!');
+            console.log('🔴 pixiSpriteLayer not found!');
         }
     }
 

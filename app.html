@@ -708,7 +708,7 @@
                 <div class="control-section">
                     <label class="checkbox-group">
                         <input type="checkbox" id="pixiMeshes" checked>
-                        <span class="checkbox-label">Building Mesh</span>
+                        <span class="checkbox-label">Building Sprite</span>
                     </label>
                     <label class="checkbox-group">
                         <input type="checkbox" id="natureOverlay" checked>
@@ -719,11 +719,11 @@
                 <div class="control-section">
                     <div class="section-title">Tracking Visualization</div>
                     <label class="checkbox-group">
-                        <input type="checkbox" id="poseSkeleton" checked>
+                        <input type="checkbox" id="poseSkeleton" unchecked>
                         <span class="checkbox-label">Pose Skeleton</span>
                     </label>
                     <label class="checkbox-group">
-                        <input type="checkbox" id="poseLandmarks" checked>
+                        <input type="checkbox" id="poseLandmarks" unchecked>
                         <span class="checkbox-label">Pose Landmarks</span>
                     </label>
                     <!-- Mesh wireframe and shoulder stickers controls removed -->
@@ -783,9 +783,9 @@
     <!-- Layer System -->
     <script src="layers/BaseLayer.js"></script>
     <script src="layers/BackgroundLayer.js"></script>
-    <!-- BuildingLayer removed - using PixiMeshLayer for building mesh --></script>
+    <!-- BuildingLayer removed - using PixiSpriteLayer for building sprites --></script>
     <script src="layers/NatureLayer.js"></script>
-    <script src="layers/PixiMeshLayer.js"></script>
+    <script src="layers/PixiSpriteLayer.js"></script>
     <script src="layers/LayerManager.js"></script>
 
     <!-- Main Application -->
