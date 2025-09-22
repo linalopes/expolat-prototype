@@ -7,7 +7,7 @@ class NatureLayer extends BaseLayer {
         super('nature', {
             regions: [],
             currentOverlay: null,
-            zIndex: 10, // Highest z-index to render on top
+            zIndex: 20, // Above building sprites
             alwaysRender: false, // Only render when overlay changes
             ...config
         });
@@ -102,7 +102,7 @@ class NatureLayer extends BaseLayer {
             this.pixiApp.canvas.style.width = '100%';
             this.pixiApp.canvas.style.height = '100%';
             this.pixiApp.canvas.style.pointerEvents = 'none';
-            this.pixiApp.canvas.style.zIndex = '15'; // Above sprites but below UI
+            this.pixiApp.canvas.style.zIndex = String(this.config.zIndex || 10); // Use configured zIndex
 
             // Find the canvas container and append PixiJS canvas
             const canvasContainer = this.canvas.parentElement;

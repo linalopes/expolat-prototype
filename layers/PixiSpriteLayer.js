@@ -88,7 +88,7 @@ class PixiSpriteLayer extends BaseLayer {
             this.pixiApp.canvas.style.position = 'absolute';
             this.pixiApp.canvas.style.top = '0';
             this.pixiApp.canvas.style.left = '0';
-            this.pixiApp.canvas.style.zIndex = '100'; // Even higher z-index
+            this.pixiApp.canvas.style.zIndex = String(this.config.zIndex || 15); // Use configured zIndex
             this.pixiApp.canvas.style.pointerEvents = 'none';
             this.pixiApp.canvas.style.opacity = '1.0'; // Ensure full opacity
 
