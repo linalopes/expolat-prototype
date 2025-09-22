@@ -5,26 +5,42 @@
 class BackgroundLayer extends BaseLayer {
     constructor(config = {}) {
         super('background', {
-            mode: 'blur', // 'blur', 'remove', 'replace', 'none'
+            mode: 'mountain_cutout', // 'blur', 'remove', 'replace', 'none', 'mountain_cutout'
             blurStrength: 15,
-            backgroundImage: null,
+            backgroundImage: 'bg-images/mountain.png', // Default mountain backdrop
             backgroundColor: '#000000',
             confidenceThreshold: 0.7,
+            personTint: { r: 255, g: 255, b: 255, a: 0.8 }, // White tint for person
+            personOpacity: 0.6, // Overall opacity of the person layer (0.0-1.0)
             zIndex: 1,
             ...config
         });
 
         this.backgroundImage = new Image();
         this.blurCache = new Map();
+        this.mountainBackdrop = new Image();
+
+        // Load mountain backdrop
+        this.loadMountainBackdrop();
 
         // Load default background image if provided
-        if (this.config.backgroundImage) {
+        if (this.config.backgroundImage && this.config.backgroundImage !== 'bg-images/mountain.png') {
             this.setBackgroundImage(this.config.backgroundImage);
         }
     }
 
     onInit() {
         console.log('BackgroundLayer initialized');
+    }
+
+    loadMountainBackdrop() {
+        this.mountainBackdrop.onload = () => {
+            console.log('✅ Mountain backdrop loaded:', this.mountainBackdrop.width, 'x', this.mountainBackdrop.height);
+        };
+        this.mountainBackdrop.onerror = (e) => {
+            console.error('❌ Failed to load mountain backdrop:', e);
+        };
+        this.mountainBackdrop.src = 'bg-images/mountain.png';
     }
 
     async onRender(inputData, timestamp) {
@@ -44,6 +60,9 @@ class BackgroundLayer extends BaseLayer {
             case 'replace':
                 this.replaceBackground(pixels, mask);
                 break;
+            case 'mountain_cutout':
+                this.applyMountainCutout(pixels, mask);
+                break;
             case 'none':
                 // No background processing
                 break;
@@ -58,6 +77,125 @@ class BackgroundLayer extends BaseLayer {
     shouldRender(inputData, timestamp) {
         // Always render when input data changes
         return true;
+    }
+
+    applyMountainCutout(pixels, mask) {
+        if (!this.mountainBackdrop.complete) {
+            console.warn('Mountain backdrop not loaded yet');
+            return false;
+        }
+
+        // First, replace the background with the mountain image
+        this.drawMountainBackground(pixels, mask);
+
+        // Then apply white tint to the person
+        this.applyPersonTint(pixels, mask);
+
+        return true;
+    }
+
+    drawMountainBackground(pixels, mask) {
+        // Create a temporary canvas to get mountain image data
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = this.canvas.width;
+        tempCanvas.height = this.canvas.height;
+        const tempCtx = tempCanvas.getContext('2d');
+
+        // Draw mountain scaled to fill canvas (cover mode)
+        const scaleX = this.canvas.width / this.mountainBackdrop.width;
+        const scaleY = this.canvas.height / this.mountainBackdrop.height;
+        const scale = Math.max(scaleX, scaleY);
+
+        const scaledWidth = this.mountainBackdrop.width * scale;
+        const scaledHeight = this.mountainBackdrop.height * scale;
+
+        const offsetX = (this.canvas.width - scaledWidth) / 2;
+        const offsetY = (this.canvas.height - scaledHeight) / 2;
+
+        tempCtx.drawImage(
+            this.mountainBackdrop,
+            offsetX, offsetY,
+            scaledWidth, scaledHeight
+        );
+
+        // Get mountain image data
+        const mountainData = tempCtx.getImageData(0, 0, this.canvas.width, this.canvas.height).data;
+
+        // Replace background pixels with mountain pixels
+        for (let i = 0; i < pixels.length; i += 4) {
+            const maskValue = this.getMaskValue(i, mask);
+
+            // If this pixel is background (not person), replace with mountain
+            if (maskValue < this.config.confidenceThreshold) {
+                pixels[i] = mountainData[i];         // R
+                pixels[i + 1] = mountainData[i + 1]; // G
+                pixels[i + 2] = mountainData[i + 2]; // B
+                pixels[i + 3] = 255;                 // A (fully opaque)
+            }
+        }
+    }
+
+    applyPersonTint(pixels, mask) {
+        const { r, g, b, a } = this.config.personTint;
+        const personOpacity = this.config.personOpacity;
+
+        for (let i = 0; i < pixels.length; i += 4) {
+            const maskValue = this.getMaskValue(i, mask);
+
+            // If this pixel is person (foreground)
+            if (maskValue >= this.config.confidenceThreshold) {
+                // Apply white tint
+                const tintAlpha = a * maskValue; // Stronger tint for higher confidence
+                pixels[i] = pixels[i] * (1 - tintAlpha) + r * tintAlpha;         // R
+                pixels[i + 1] = pixels[i + 1] * (1 - tintAlpha) + g * tintAlpha; // G
+                pixels[i + 2] = pixels[i + 2] * (1 - tintAlpha) + b * tintAlpha; // B
+
+                // Apply overall person opacity by blending with mountain background
+                if (personOpacity < 1.0) {
+                    // Get corresponding mountain pixel
+                    const mountainPixel = this.getMountainPixel(i);
+                    const opacity = personOpacity * maskValue;
+
+                    pixels[i] = pixels[i] * opacity + mountainPixel.r * (1 - opacity);         // R
+                    pixels[i + 1] = pixels[i + 1] * opacity + mountainPixel.g * (1 - opacity); // G
+                    pixels[i + 2] = pixels[i + 2] * opacity + mountainPixel.b * (1 - opacity); // B
+                }
+            }
+        }
+    }
+
+    getMountainPixel(pixelIndex) {
+        // Get the mountain pixel data for this position
+        if (!this.mountainData) {
+            // Cache mountain data for efficiency
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = this.canvas.width;
+            tempCanvas.height = this.canvas.height;
+            const tempCtx = tempCanvas.getContext('2d');
+
+            const scaleX = this.canvas.width / this.mountainBackdrop.width;
+            const scaleY = this.canvas.height / this.mountainBackdrop.height;
+            const scale = Math.max(scaleX, scaleY);
+
+            const scaledWidth = this.mountainBackdrop.width * scale;
+            const scaledHeight = this.mountainBackdrop.height * scale;
+            const offsetX = (this.canvas.width - scaledWidth) / 2;
+            const offsetY = (this.canvas.height - scaledHeight) / 2;
+
+            tempCtx.drawImage(this.mountainBackdrop, offsetX, offsetY, scaledWidth, scaledHeight);
+            this.mountainData = tempCtx.getImageData(0, 0, this.canvas.width, this.canvas.height).data;
+        }
+
+        return {
+            r: this.mountainData[pixelIndex],
+            g: this.mountainData[pixelIndex + 1],
+            b: this.mountainData[pixelIndex + 2]
+        };
+    }
+
+    getMaskValue(pixelIndex, mask) {
+        if (!mask) return 0;
+        return mask[pixelIndex] / 255;
     }
 
     applyBackgroundBlur(pixels, mask, originalImage) {

@@ -10,6 +10,7 @@ class PixiSpriteLayer extends BaseLayer {
             alwaysRender: true, // Always render to update sprite positions
             pixiContainer: null,
             debugMode: true,
+            poseConfig: null, // Configuration for pose-to-texture mapping
             ...config
         });
 
@@ -38,6 +39,49 @@ class PixiSpriteLayer extends BaseLayer {
         this.lastPoseType = new Map();
         this.poseChangeTime = 0;
         this.lastSpriteTransform = null;
+    }
+
+    // Method to update pose configuration from segmentation
+    setPoseConfig(poseConfig) {
+        this.config.poseConfig = poseConfig;
+        console.log('PixiSpriteLayer: Pose configuration updated');
+    }
+
+    // Get texture file for a given pose from configuration
+    getTextureForPose(poseType) {
+        // Check if we have pose configuration
+        if (!this.config.poseConfig || !this.config.poseConfig.poses) {
+            console.warn('No pose configuration available, using fallback texture');
+            return null; // No texture available
+        }
+
+        const pose = this.config.poseConfig.poses[poseType];
+        if (!pose || !pose.textures || !pose.textures.building) {
+            console.warn(`No building texture configuration for pose: ${poseType}`);
+            return null;
+        }
+
+        const buildingTextures = pose.textures.building;
+
+        // Handle variants array
+        if (buildingTextures.variants && Array.isArray(buildingTextures.variants)) {
+            if (buildingTextures.variants.length === 0) {
+                console.log(`No building texture variants for pose: ${poseType}`);
+                return null; // Empty variants array means no texture
+            }
+
+            // Select random variant or first one
+            const randomIndex = Math.floor(Math.random() * buildingTextures.variants.length);
+            const textureFile = buildingTextures.variants[randomIndex];
+            return textureFile ? `images/${textureFile}` : null;
+        }
+
+        // Legacy format support
+        if (buildingTextures.primary) {
+            return `images/${buildingTextures.primary}`;
+        }
+
+        return null;
     }
 
     onInit() {
@@ -311,42 +355,40 @@ class PixiSpriteLayer extends BaseLayer {
             return; // Don't switch too frequently
         }
 
-        // Map pose types to texture files
-        const poseTextures = {
-            'mountain': 'images/prime.png',        // Arms up -> Prime Tower
-            'jesus': 'images/cristoredentor.png',  // Arms out -> Cristo Redentor
-            'tree': 'images/prime.png',           // Tree pose -> Prime Tower
-            'warrior': 'images/cristoredentor.png', // Warrior -> Cristo Redentor
-            'Warrior': 'images/cristoredentor.png', // Capitalized Warrior -> Cristo Redentor
-            'neutral': 'images/prime.png'         // Default to Prime Tower for neutral
-        };
-
-        const targetTexture = poseTextures[poseType];
+        // Get texture from configuration
+        const targetTexture = this.getTextureForPose(poseType);
         const sprite = this.sprites.get(spriteId);
 
-        // Switch texture based on pose - only if texture actually changed
-        if (sprite && targetTexture) {
-            sprite.visible = true;
+        // Handle sprite visibility based on texture availability
+        if (sprite) {
+            if (targetTexture) {
+                // Show sprite and update texture if needed
+                sprite.visible = true;
 
-            // Check if we need to change texture
-            const currentTexturePath = this.currentSpriteTextures.get(spriteId);
-            if (currentTexturePath !== targetTexture) {
-                console.log(`🔄 Switching from ${currentTexturePath} to ${poseType} texture: ${targetTexture}`);
-                this.currentSpriteTextures.set(spriteId, targetTexture);
-                this.lastTextureChange.set(spriteId, now);
+                // Check if we need to change texture
+                const currentTexturePath = this.currentSpriteTextures.get(spriteId);
+                if (currentTexturePath !== targetTexture) {
+                    console.log(`🔄 Switching from ${currentTexturePath} to ${poseType} texture: ${targetTexture}`);
+                    this.currentSpriteTextures.set(spriteId, targetTexture);
+                    this.lastTextureChange.set(spriteId, now);
 
-                // Load and apply new texture
-                PIXI.Assets.load(targetTexture).then(newTexture => {
-                    if (sprite instanceof PIXI.Sprite) {
-                        sprite.texture = newTexture;
-                        // Keep sprite size consistent
-                        sprite.width = 200;
-                        sprite.height = 200;
-                        console.log(`✅ Applied ${poseType} texture to sprite`);
-                    }
-                }).catch(error => {
-                    console.warn('Failed to load texture:', targetTexture, error);
-                });
+                    // Load and apply new texture
+                    PIXI.Assets.load(targetTexture).then(newTexture => {
+                        if (sprite instanceof PIXI.Sprite) {
+                            sprite.texture = newTexture;
+                            // Keep sprite size consistent
+                            sprite.width = 200;
+                            sprite.height = 200;
+                            console.log(`✅ Applied ${poseType} texture to sprite`);
+                        }
+                    }).catch(error => {
+                        console.warn('Failed to load texture:', targetTexture, error);
+                    });
+                }
+            } else {
+                // Hide sprite when no texture is available (empty variants)
+                sprite.visible = false;
+                console.log(`🚫 Hiding sprite for pose ${poseType} (no texture configured)`);
             }
         }
     }
@@ -413,7 +455,9 @@ class PixiSpriteLayer extends BaseLayer {
             const aspectRatio = sprite.texture.height / sprite.texture.width;
             sprite.height = smoothWidth * aspectRatio;
 
-            sprite.visible = true;
+            // Only show sprite if it has a valid texture (not just the white placeholder)
+            // The texture switching logic in updateSpriteTextureForPose will control visibility
+            // sprite.visible = true; // Removed - let texture logic control visibility
             sprite.alpha = 0.8; // Semi-transparent to see if it's moving
 
             // Add visual debug indicators at landmark positions
@@ -544,11 +588,9 @@ class PixiSpriteLayer extends BaseLayer {
         try {
             console.log('🔧 Creating building sprite...');
 
-            // Load the actual Prime Tower texture
-            const primeTexture = await PIXI.Assets.load('images/prime.png');
-
-            // Create sprite with the Prime Tower texture
-            const sprite = new PIXI.Sprite(primeTexture);
+            // Create sprite with a default 1x1 transparent texture (no hardcoded image)
+            const emptyTexture = PIXI.Texture.WHITE; // Use built-in white texture as placeholder
+            const sprite = new PIXI.Sprite(emptyTexture);
 
             // Set anchor to center so sprite scales and positions from its center
             sprite.anchor.set(0.5, 0.5);
@@ -559,17 +601,13 @@ class PixiSpriteLayer extends BaseLayer {
             sprite.width = 100; // Force smaller initial size to see positioning clearly
             sprite.height = 100;
 
-
-            // Make sprite VERY visible for debugging (same as working version)
-            sprite.visible = true;
+            // Initially invisible - will be made visible only when a valid texture is loaded
+            sprite.visible = false;
             sprite.renderable = true;
             sprite.cullable = false; // Prevent culling
-            sprite.alpha = 1.0; // Full opacity
-            // DON'T use scale.set() - it overrides the width/height!
-            // sprite.scale.set(1.0); // This resets width/height to texture dimensions
+            sprite.alpha = 1.0; // Full opacity when visible
 
-
-            // Add to stage (like working version)
+            // Add to stage
             this.pixiApp.stage.addChild(sprite);
             // Force render immediately after adding sprite
             this.pixiApp.renderer.render(this.pixiApp.stage);
@@ -577,7 +615,7 @@ class PixiSpriteLayer extends BaseLayer {
             // Store sprite for future manipulation
             this.sprites.set('test', sprite);
 
-            console.log('✓ Test sprite created and positioned');
+            console.log('✓ Test sprite created (initially invisible until texture is set)');
 
         } catch (error) {
             console.error('Failed to create test sprite:', error);

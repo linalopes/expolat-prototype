@@ -16,7 +16,7 @@ class NatureParticleSystem {
         this.settings = {
             spawnRate: 4,           // particles per second
             maxParticles: 25,       // safety cap
-            baseScale: 0.5,         // TEMPORARY: Larger scale for debugging
+            baseScale: 0.125,       // Quarter size - much smaller particles
             scaleJitter: 0.35,      // random extra scale
             speedMin: 2,            // px/sec horizontal speed
             speedMax: 8,
@@ -83,52 +83,32 @@ class NatureParticleSystem {
         const w = this.pixiApp.renderer.width;
         const h = this.pixiApp.renderer.height;
 
-        let bounds;
         switch (this.settings.region) {
             case 'bottom_third':
                 const yTop = Math.floor(h * 0.67);
-                bounds = { x: 0, y: yTop, width: w, height: h - yTop };
-                break;
+                return { x: 0, y: yTop, width: w, height: h - yTop };
 
             case 'top_half':
-                bounds = { x: 0, y: 0, width: w, height: Math.floor(h * 0.5) };
-                break;
+                return { x: 0, y: 0, width: w, height: Math.floor(h * 0.5) };
 
             case 'full_screen':
             default:
-                bounds = { x: 0, y: 0, width: w, height: h };
-                break;
+                return { x: 0, y: 0, width: w, height: h };
         }
-
-        console.log('🔍 Region bounds calculated:', {
-            region: this.settings.region,
-            canvasSize: `${w}x${h}`,
-            bounds: bounds
-        });
-
-        return bounds;
     }
 
     async loadTexture(texturePath) {
-        console.log('🔍 Loading texture from path:', texturePath);
         try {
             // Use PIXI.Assets if available, otherwise fall back to PIXI.Texture.from
             if (PIXI.Assets) {
-                console.log('🔍 Using PIXI.Assets.load');
                 this.texture = await PIXI.Assets.load(texturePath);
             } else {
-                console.log('🔍 Using PIXI.Texture.from fallback');
                 this.texture = PIXI.Texture.from(texturePath);
             }
             this.textureLoaded = true;
-            console.log(`✅ Loaded particle texture: ${texturePath}`, {
-                width: this.texture.width,
-                height: this.texture.height,
-                valid: this.texture.valid,
-                source: this.texture.source
-            });
+            console.log(`✓ Loaded particle texture: ${texturePath}`);
         } catch (error) {
-            console.error(`❌ Failed to load particle texture: ${texturePath}`, error);
+            console.error(`Failed to load particle texture: ${texturePath}`, error);
             this.textureLoaded = false;
         }
     }
@@ -141,12 +121,7 @@ class NatureParticleSystem {
 
         this.active = true;
         this.lastUpdate = performance.now() / 1000;
-        console.log(`✅ Started particle system: ${this.settings.animationType} with settings:`, {
-            spawnRate: this.settings.spawnRate,
-            maxParticles: this.settings.maxParticles,
-            region: this.settings.region,
-            regionBounds: this.regionBounds
-        });
+        console.log(`✓ Started particle system: ${this.settings.animationType}`);
     }
 
     stop() {
@@ -177,21 +152,11 @@ class NatureParticleSystem {
     }
 
     spawnParticle() {
-        if (!this.texture) {
-            console.warn('🟡 Cannot spawn particle: texture not loaded');
-            return;
-        }
+        if (!this.texture) return;
 
-        console.log('🟢 Spawning particle at:', this.particles.length, '/', this.settings.maxParticles);
         const sprite = new PIXI.Sprite(this.texture);
         sprite.anchor.set(0.5);
         sprite.alpha = this.settings.alphaStart;
-
-        console.log('🔍 Texture info:', {
-            width: this.texture.width,
-            height: this.texture.height,
-            valid: this.texture.valid
-        });
         // Set blend mode safely
         if (typeof this.settings.blendMode === 'number') {
             sprite.blendMode = this.settings.blendMode;
@@ -205,14 +170,6 @@ class NatureParticleSystem {
 
         // Position based on animation type and region
         this.setInitialPosition(sprite);
-
-        console.log('🔍 Particle positioned at:', {
-            x: sprite.x,
-            y: sprite.y,
-            scale: sprite.scale.x,
-            alpha: sprite.alpha,
-            regionBounds: this.regionBounds
-        });
 
         // Animation properties
         sprite.__particleData = this.createParticleData(sprite);
@@ -232,14 +189,13 @@ class NatureParticleSystem {
                 break;
 
             case 'flying':
-                // TEMPORARY: Spawn birds in visible area for testing
-                sprite.x = bounds.width * 0.2 + Math.random() * bounds.width * 0.6; // Middle 60% of screen
+                // Spawn from sides for flying motion
+                if (Math.random() < 0.5) {
+                    sprite.x = -sprite.width; // Left side
+                } else {
+                    sprite.x = bounds.width + sprite.width; // Right side
+                }
                 sprite.y = bounds.y + Math.random() * bounds.height;
-                console.log('🔍 Bird spawning in VISIBLE area at:', {
-                    x: Math.round(sprite.x),
-                    y: Math.round(sprite.y),
-                    bounds: bounds
-                });
                 break;
 
             case 'falling':
@@ -335,19 +291,8 @@ class NatureParticleSystem {
 
             case 'flying':
                 // Horizontal flight with slight vertical drift
-                const oldX = sprite.x;
                 sprite.x += data.speed * dt;
                 sprite.y += data.verticalSpeed * dt;
-
-                if (this.particles.length <= 3) { // Only log for first few particles to avoid spam
-                    console.log('🔍 Bird flying:', {
-                        oldX: Math.round(oldX),
-                        newX: Math.round(sprite.x),
-                        y: Math.round(sprite.y),
-                        speed: data.speed,
-                        dt: dt.toFixed(3)
-                    });
-                }
 
                 // Wing flap simulation (scale oscillation)
                 data.phase += 8 * dt; // Faster flapping

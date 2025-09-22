@@ -60,12 +60,8 @@ class PersonSegmentation {
         this.textureCache = new Map();
         this.textureImage = null;
 
-        // Initialize default overlay to ensure bottom third is always visible
-        this.currentOverlay = {
-            image: 'aletsch.png',
-            opacity: 1.0,
-            blendMode: 'normal'
-        };
+        // Initialize with no overlay - will be set by pose detection
+        this.currentOverlay = null;
 
         this.init();
     }
@@ -143,11 +139,12 @@ class PersonSegmentation {
     }
 
     setupLayers() {
-        // Create and configure background layer (always replace with solid color)
+        // Create and configure background layer (mountain cutout effect)
         this.backgroundLayer = new BackgroundLayer({
-            mode: 'replace',
+            mode: 'mountain_cutout',
             confidenceThreshold: this.settings.confidenceThreshold,
-            backgroundColor: this.settings.backgroundColor
+            backgroundColor: this.settings.backgroundColor,
+            backgroundImage: 'bg-images/mountain.png'
         });
 
         // BuildingLayer removed - PixiMeshLayer will show the building mesh
@@ -167,6 +164,11 @@ class PersonSegmentation {
             pixiContainer: 'pixiContainer',
             debugMode: true // Debug mode matches default checkbox state
         });
+
+        // Pass configuration to PixiSpriteLayer after it's created
+        if (this.poseMapping) {
+            this.pixiSpriteLayer.setPoseConfig(this.poseMapping);
+        }
         console.log('PixiSpriteLayer created successfully:', !!this.pixiSpriteLayer);
 
         // Add layers to manager (simplified to 3 layers)
@@ -433,16 +435,12 @@ class PersonSegmentation {
                 exists: !!this.poseMapping,
                 poses: this.poseMapping?.poses ? Object.keys(this.poseMapping.poses) : 'none'
             });
-            // For unknown poses, ensure we still have an overlay
+            // For unknown poses, clear overlay
             if (!this.currentOverlay) {
-                this.currentOverlay = {
-                    image: 'aletsch.png',
-                    opacity: 1.0,
-                    blendMode: 'normal'
-                };
+                this.currentOverlay = null;
                 const natureLayer = this.layerManager.getLayer('nature');
                 if (natureLayer) {
-                    natureLayer.setOverlay(this.currentOverlay);
+                    natureLayer.setOverlay(null);
                 }
             }
             return;
@@ -457,7 +455,7 @@ class PersonSegmentation {
             let textureFile = null;
 
             // Handle both old and new format
-            if (buildingTextures.variants && Array.isArray(buildingTextures.variants)) {
+            if (buildingTextures.variants && Array.isArray(buildingTextures.variants) && buildingTextures.variants.length > 0) {
                 // New variant format - randomly select from available options
                 const randomIndex = Math.floor(Math.random() * buildingTextures.variants.length);
                 textureFile = buildingTextures.variants[randomIndex];
@@ -475,6 +473,11 @@ class PersonSegmentation {
                 // Update debug display
                 const buildingName = textureFile.replace('.png', '').replace('.jpg', '');
                 this.updateDebugDisplay(null, buildingName, null);
+            } else {
+                // No texture available (empty variants array)
+                this.currentTexture = null;
+                console.log('No building texture variants available, clearing texture');
+                this.updateDebugDisplay(null, 'none', null);
             }
         } else if (!this.settings.buildingOverlayEnabled) {
             // Clear building textures if building overlay is disabled
@@ -510,14 +513,10 @@ class PersonSegmentation {
             }
         }
 
-        this.currentOverlay = selectedNatureOverlay || {
-            image: 'aletsch.png',
-            opacity: 1.0,
-            blendMode: 'normal'
-        };
+        this.currentOverlay = selectedNatureOverlay || null;
 
         // Update debug display for nature
-        const natureName = this.currentOverlay.image ? this.currentOverlay.image.replace('.png', '').replace('.jpg', '') : 'none';
+        const natureName = this.currentOverlay?.image ? this.currentOverlay.image.replace('.png', '').replace('.jpg', '') : 'none';
         this.updateDebugDisplay(null, null, natureName);
 
         const natureLayer = this.layerManager.getLayer('nature');
@@ -619,13 +618,10 @@ class PersonSegmentation {
         console.log(`Overlay canvas dimensions: ${this.overlayCanvas.width}x${this.overlayCanvas.height}`);
         console.log(`Overlay area: startY=${startY}, height=${overlayAreaHeight}`);
 
-        // Ensure we have a current overlay, fallback to default
+        // Only proceed if we have a current overlay (no hardcoded fallback)
         if (!this.currentOverlay) {
-            this.currentOverlay = {
-                image: 'iguazu.png',
-                opacity: 1.0,
-                blendMode: 'normal'
-            };
+            console.log('No nature overlay configured - skipping overlay rendering');
+            return;
         }
 
         console.log(`Loading nature texture: ${this.currentOverlay.image}`);
@@ -642,7 +638,7 @@ class PersonSegmentation {
 
             this.overlayCtx.save();
             this.overlayCtx.globalCompositeOperation = 'source-over';
-            this.overlayCtx.globalAlpha = 1.0;
+            this.overlayCtx.globalAlpha = 0.4;
 
             // Draw the nature texture
             this.overlayCtx.drawImage(
@@ -1159,6 +1155,11 @@ class PersonSegmentation {
                 poseMapping: !!this.poseMapping
             });
 
+            // Update PixiSpriteLayer with new configuration
+            if (this.pixiSpriteLayer) {
+                this.pixiSpriteLayer.setPoseConfig(this.poseMapping);
+            }
+
             // Load settings from config
             if (config.settings) {
                 this.settings.confidenceThreshold = config.settings.segmentationQuality || 0.7;
@@ -1198,7 +1199,7 @@ class PersonSegmentation {
                     neutral: {
                         name: "Neutral",
                         textures: {
-                            building: { variants: ["neutral.png"] }
+                            building: { variants: [] }
                         }
                     }
                 },
