@@ -1,6 +1,6 @@
 /**
  * Nature Layer
- * Handles nature overlays like bottom-third nature scenes
+ * Handles nature overlays like bottom-third nature scenes with animated particles
  */
 class NatureLayer extends BaseLayer {
     constructor(config = {}) {
@@ -15,6 +15,13 @@ class NatureLayer extends BaseLayer {
         this.lastRenderedOverlay = null;
         this.overlayImages = new Map();
         this.regionRenderers = new Map();
+
+        // PixiJS particle system integration
+        this.pixiApp = null;
+        this.pixiContainer = null;
+        this.particleSystem = null;
+        this.particlesEnabled = false;
+        this.pixiInitializationPromise = null;
 
         this.initializeRegionRenderers();
     }
@@ -34,6 +41,92 @@ class NatureLayer extends BaseLayer {
                     enabled: true
                 }
             ];
+        }
+
+        // Initialize PixiJS for particle effects (async)
+        this.pixiInitializationPromise = this.initializePixiParticles();
+    }
+
+    async initializePixiParticles() {
+        // Check if PixiJS is available
+        if (typeof PIXI === 'undefined' || !PIXI.Application) {
+            console.error('PixiJS is not available. Make sure PixiJS script is loaded before this layer.');
+            return;
+        }
+
+        console.log('PixiJS is available, checking components:', {
+            pixiExists: typeof PIXI !== 'undefined',
+            hasApplication: !!PIXI.Application,
+            hasBlendModes: !!PIXI.BLEND_MODES,
+            hasAssets: !!PIXI.Assets
+        });
+
+        try {
+            console.log('PixiJS is ready, initializing particles...');
+
+            // Create PixiJS application for particles
+            this.pixiApp = new PIXI.Application();
+
+            // Use the actual displayed canvas size (clientWidth/Height) instead of internal canvas size
+            const displayWidth = this.canvas.clientWidth || this.canvas.width;
+            const displayHeight = this.canvas.clientHeight || this.canvas.height;
+
+            await this.pixiApp.init({
+                width: displayWidth,
+                height: displayHeight,
+                backgroundColor: 0x000000,
+                backgroundAlpha: 0, // Transparent background
+                premultipliedAlpha: false,
+                antialias: true
+            });
+
+            console.log('🔍 PixiJS app initialized with dimensions:', {
+                pixiWidth: this.pixiApp.renderer.width,
+                pixiHeight: this.pixiApp.renderer.height,
+                canvasWidth: this.canvas.width,
+                canvasHeight: this.canvas.height,
+                canvasClientWidth: this.canvas.clientWidth,
+                canvasClientHeight: this.canvas.clientHeight,
+                displayWidth: displayWidth,
+                displayHeight: displayHeight
+            });
+
+            // Create main container for nature particles
+            this.pixiContainer = new PIXI.Container();
+            this.pixiApp.stage.addChild(this.pixiContainer);
+
+            // Position PixiJS canvas to overlay the main canvas exactly
+            this.pixiApp.canvas.style.position = 'absolute';
+            this.pixiApp.canvas.style.top = '0';
+            this.pixiApp.canvas.style.left = '0';
+            this.pixiApp.canvas.style.width = '100%';
+            this.pixiApp.canvas.style.height = '100%';
+            this.pixiApp.canvas.style.pointerEvents = 'none';
+            this.pixiApp.canvas.style.zIndex = '15'; // Above sprites but below UI
+
+            // Find the canvas container and append PixiJS canvas
+            const canvasContainer = this.canvas.parentElement;
+            if (canvasContainer) {
+                canvasContainer.appendChild(this.pixiApp.canvas);
+                console.log('✅ PixiJS canvas added to container:', {
+                    canvasSize: `${this.pixiApp.canvas.width}x${this.pixiApp.canvas.height}`,
+                    canvasStyle: this.pixiApp.canvas.style.cssText,
+                    containerChildren: canvasContainer.children.length
+                });
+            } else {
+                console.error('❌ Canvas container not found - cannot add PixiJS canvas');
+            }
+
+            console.log('✓ NatureLayer PixiJS particles initialized');
+        } catch (error) {
+            console.error('Failed to initialize PixiJS particles for NatureLayer:', error);
+        }
+    }
+
+    async ensurePixiReady() {
+        if (this.pixiInitializationPromise) {
+            console.log('Waiting for PixiJS initialization to complete...');
+            await this.pixiInitializationPromise;
         }
     }
 
@@ -61,16 +154,26 @@ class NatureLayer extends BaseLayer {
 
         let rendered = false;
 
-        // Render each enabled region
-        for (const region of this.config.regions) {
-            if (!region.enabled) continue;
+        // Check if particles are enabled for this overlay
+        const hasParticles = this.config.currentOverlay?.particles?.enabled;
 
-            const regionRenderer = this.regionRenderers.get(region.name);
-            if (regionRenderer) {
-                const regionRendered = await regionRenderer(region, this.config.currentOverlay, timestamp);
-                rendered = rendered || regionRendered;
-            } else {
-                console.warn(`No renderer found for region: ${region.name}`);
+        if (hasParticles) {
+            // If particles are enabled, skip static image rendering
+            console.log('Particles enabled - skipping static image rendering');
+            rendered = true; // Mark as rendered since particles handle the visual
+        } else {
+            // Render static images only when particles are disabled
+            console.log('Particles disabled - rendering static images');
+            for (const region of this.config.regions) {
+                if (!region.enabled) continue;
+
+                const regionRenderer = this.regionRenderers.get(region.name);
+                if (regionRenderer) {
+                    const regionRendered = await regionRenderer(region, this.config.currentOverlay, timestamp);
+                    rendered = rendered || regionRendered;
+                } else {
+                    console.warn(`No renderer found for region: ${region.name}`);
+                }
             }
         }
 
@@ -176,7 +279,13 @@ class NatureLayer extends BaseLayer {
         if (!overlay) {
             return 'none';
         }
-        const key = `${overlay.image || overlay.nature || 'none'}_${overlay.opacity || 1.0}_${overlay.blendMode || 'normal'}`;
+
+        // Include particle information in the key
+        const particleKey = overlay.particles?.enabled ?
+            `particles_${overlay.particles.animationType || 'none'}_${overlay.particles.texture || 'none'}` :
+            'no_particles';
+
+        const key = `${overlay.image || overlay.nature || 'none'}_${overlay.opacity || 1.0}_${overlay.blendMode || 'normal'}_${particleKey}`;
         return key;
     }
 
@@ -203,6 +312,79 @@ class NatureLayer extends BaseLayer {
         this.config.currentOverlay = overlay;
         this.lastRenderedOverlay = null; // Force re-render
         this.invalidate();
+
+        // Handle particle effects (fire-and-forget)
+        this.updateParticleSystem(overlay).catch(error => {
+            console.error('Failed to update particle system:', error);
+        });
+    }
+
+    async updateParticleSystem(overlay) {
+        console.log('🟡 updateParticleSystem called with overlay:', overlay);
+
+        // If PixiJS isn't ready yet, wait for it
+        if (!this.pixiApp || !this.pixiContainer) {
+            console.log('PixiJS not ready, waiting for initialization...');
+            await this.ensurePixiReady();
+            if (!this.pixiApp || !this.pixiContainer) {
+                console.warn('PixiJS initialization failed, particles not available');
+                return;
+            }
+        }
+
+        // Stop current particle system
+        if (this.particleSystem) {
+            this.particleSystem.stop();
+            this.particleSystem.destroy();
+            this.particleSystem = null;
+        }
+
+        // Check if overlay has particle configuration
+        if (overlay && overlay.particles && overlay.particles.enabled) {
+            try {
+                console.log('🟢 Starting particle system with config:', overlay.particles);
+
+                // Ensure proper blendMode
+                const particleConfig = { ...overlay.particles };
+                if (!particleConfig.blendMode && PIXI.BLEND_MODES) {
+                    particleConfig.blendMode = PIXI.BLEND_MODES.NORMAL;
+                }
+
+                // Create new particle system
+                this.particleSystem = new NatureParticleSystem(this.pixiApp, particleConfig);
+                this.pixiContainer.addChild(this.particleSystem.container);
+
+                // Load texture and start particles
+                await this.particleSystem.loadTexture(overlay.particles.texture);
+                this.particleSystem.start();
+
+                // Start update loop
+                this.startParticleUpdateLoop();
+
+                console.log('✅ Particle system started successfully');
+            } catch (error) {
+                console.error('❌ Failed to start particle system:', error);
+            }
+        } else {
+            console.log('🔴 No particles configured for this overlay - overlay:', !!overlay, 'particles:', !!overlay?.particles, 'enabled:', overlay?.particles?.enabled);
+        }
+    }
+
+    startParticleUpdateLoop() {
+        if (this.particleUpdateLoop) {
+            return; // Already running
+        }
+
+        this.particleUpdateLoop = () => {
+            if (this.particleSystem && this.particleSystem.active) {
+                this.particleSystem.update();
+                requestAnimationFrame(this.particleUpdateLoop);
+            } else {
+                this.particleUpdateLoop = null;
+            }
+        };
+
+        requestAnimationFrame(this.particleUpdateLoop);
     }
 
     addRegion(region) {
@@ -229,10 +411,79 @@ class NatureLayer extends BaseLayer {
         this.invalidate();
     }
 
+    setEnabled(enabled) {
+        super.setEnabled(enabled);
+        if (!enabled && this.ctx) {
+            // Clear the overlay canvas when disabled
+            this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+            // Stop particle system
+            if (this.particleSystem) {
+                this.particleSystem.stop();
+            }
+
+            // Hide PixiJS canvas
+            if (this.pixiApp && this.pixiApp.canvas) {
+                this.pixiApp.canvas.style.display = 'none';
+            }
+        } else if (enabled) {
+            // Force re-render when re-enabled
+            this.lastRenderedOverlay = null;
+
+            // Show PixiJS canvas
+            if (this.pixiApp && this.pixiApp.canvas) {
+                this.pixiApp.canvas.style.display = 'block';
+            }
+
+            // Restart particle system if overlay has particles
+            if (this.config.currentOverlay) {
+                this.updateParticleSystem(this.config.currentOverlay);
+            }
+        }
+    }
+
+    onResize(width, height) {
+        // Update PixiJS canvas size - use the actual display dimensions
+        if (this.pixiApp) {
+            const displayWidth = this.canvas.clientWidth || width;
+            const displayHeight = this.canvas.clientHeight || height;
+
+            console.log('🔍 Resizing PixiJS canvas:', {
+                newWidth: displayWidth,
+                newHeight: displayHeight,
+                canvasClientWidth: this.canvas.clientWidth,
+                canvasClientHeight: this.canvas.clientHeight
+            });
+
+            this.pixiApp.renderer.resize(displayWidth, displayHeight);
+        }
+
+        // Update particle system region bounds
+        if (this.particleSystem) {
+            this.particleSystem.onResize();
+        }
+    }
+
     destroy() {
         super.destroy();
+
+        // Stop particle system
+        if (this.particleSystem) {
+            this.particleSystem.stop();
+            this.particleSystem.destroy();
+            this.particleSystem = null;
+        }
+
+        // Destroy PixiJS application
+        if (this.pixiApp) {
+            this.pixiApp.destroy(true);
+            this.pixiApp = null;
+        }
+
         this.overlayImages.clear();
         this.regionRenderers.clear();
         this.lastRenderedOverlay = null;
+        this.pixiContainer = null;
+        this.particleUpdateLoop = null;
     }
 }

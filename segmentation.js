@@ -501,6 +501,13 @@ class PersonSegmentation {
                 // Legacy format support
                 selectedNatureOverlay = natureTextures;
             }
+
+            // Add particle configuration if available
+            if (natureTextures.particles) {
+                if (!selectedNatureOverlay) selectedNatureOverlay = {};
+                selectedNatureOverlay.particles = natureTextures.particles;
+                console.log('Added particle configuration:', natureTextures.particles);
+            }
         }
 
         this.currentOverlay = selectedNatureOverlay || {

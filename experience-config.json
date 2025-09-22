@@ -20,7 +20,19 @@
               "opacity": 1.0,
               "blendMode": "normal"
             }
-          ]
+          ],
+          "particles": {
+            "enabled": true,
+            "texture": "front-images/water-lily.png",
+            "animationType": "floating",
+            "spawnRate": 4,
+            "maxParticles": 25,
+            "region": "bottom_third",
+            "speedMin": 2,
+            "speedMax": 8,
+            "lifetimeMin": 6.0,
+            "lifetimeMax": 10.0
+          }
         }
       }
     },
@@ -44,7 +56,19 @@
               "opacity": 1.0,
               "blendMode": "normal"
             }
-          ]
+          ],
+          "particles": {
+            "enabled": true,
+            "texture": "front-images/water-lily.png",
+            "animationType": "floating",
+            "spawnRate": 3,
+            "maxParticles": 20,
+            "region": "bottom_third",
+            "speedMin": 1,
+            "speedMax": 6,
+            "lifetimeMin": 8.0,
+            "lifetimeMax": 12.0
+          }
         }
       }
     },
@@ -68,7 +92,19 @@
               "opacity": 1.0,
               "blendMode": "normal"
             }
-          ]
+          ],
+          "particles": {
+            "enabled": true,
+            "texture": "front-images/arara.png",
+            "animationType": "flying",
+            "spawnRate": 1.5,
+            "maxParticles": 8,
+            "region": "full_screen",
+            "speedMin": 15,
+            "speedMax": 25,
+            "lifetimeMin": 12.0,
+            "lifetimeMax": 18.0
+          }
         }
       }
     },
@@ -87,7 +123,19 @@
               "opacity": 0.7,
               "blendMode": "normal"
             }
-          ]
+          ],
+          "particles": {
+            "enabled": true,
+            "texture": "front-images/arara.png",
+            "animationType": "flying",
+            "spawnRate": 2,
+            "maxParticles": 8,
+            "region": "top_half",
+            "speedMin": 20,
+            "speedMax": 35,
+            "lifetimeMin": 10.0,
+            "lifetimeMax": 15.0
+          }
         }
       }
     }

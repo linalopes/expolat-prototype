@@ -777,13 +777,50 @@
 
 
 
-    <!-- PixiJS Library -->
-    <script src="https://pixijs.download/release/pixi.min.js"></script>
+    <!-- PixiJS Library with fallback -->
+    <script src="https://cdn.jsdelivr.net/npm/pixi.js@8.4.1/dist/pixi.min.js"></script>
+    <script>
+        // Add load event listener to check PixiJS availability
+        window.addEventListener('load', function() {
+            setTimeout(function() {
+                console.log('=== PixiJS Debug Info ===');
+                console.log('typeof PIXI:', typeof PIXI);
+                if (typeof PIXI !== 'undefined') {
+                    console.log('PIXI.Application:', !!PIXI.Application);
+                    console.log('PIXI.BLEND_MODES:', !!PIXI.BLEND_MODES);
+                    console.log('PIXI version:', PIXI.VERSION || 'unknown');
+                    console.log('✓ PixiJS is fully ready for particle system');
+                } else {
+                    console.error('❌ PixiJS failed to load after page load');
+                }
+                console.log('========================');
+            }, 500); // Give PixiJS time to initialize
+        });
+
+        // Check if PixiJS loaded properly, with fallback
+        setTimeout(function() {
+            if (typeof PIXI === 'undefined') {
+                console.log('Primary PixiJS CDN failed, loading fallback...');
+                const fallbackScript = document.createElement('script');
+                fallbackScript.src = 'https://unpkg.com/pixi.js@8.4.1/dist/pixi.min.js';
+                fallbackScript.onload = function() {
+                    console.log('✓ PixiJS fallback loaded successfully');
+                };
+                fallbackScript.onerror = function() {
+                    console.error('❌ All PixiJS CDNs failed to load');
+                };
+                document.head.appendChild(fallbackScript);
+            } else {
+                console.log('✓ PixiJS loaded successfully from primary CDN');
+            }
+        }, 100); // Brief delay to let script load
+    </script>
 
     <!-- Layer System -->
     <script src="layers/BaseLayer.js"></script>
     <script src="layers/BackgroundLayer.js"></script>
     <!-- BuildingLayer removed - using PixiSpriteLayer for building sprites --></script>
+    <script src="layers/NatureParticleSystem.js"></script>
     <script src="layers/NatureLayer.js"></script>
     <script src="layers/PixiSpriteLayer.js"></script>
     <script src="layers/LayerManager.js"></script>

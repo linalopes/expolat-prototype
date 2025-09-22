@@ -308,7 +308,6 @@ class PixiSpriteLayer extends BaseLayer {
 
         // Prevent too rapid switching
         if (timeSinceLastChange < 2000) {
-            console.log(`🚫 [${timestamp}] Too soon to switch again (${timeSinceLastChange}ms < 2000ms)`);
             return; // Don't switch too frequently
         }
 
